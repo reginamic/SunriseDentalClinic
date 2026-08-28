@@ -12,25 +12,39 @@ import java.util.stream.Collectors;
 
 public class ApiClient {
 
-    private static final String API_BASE_URL =
+    private static final String BASE_URL =
             "http://localhost:8081/sunrise-dental-api";
 
     private final HttpClient httpClient;
 
     public ApiClient() {
-        this.httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .build();
+
+        this.httpClient =
+                HttpClient.newBuilder()
+                        .build();
     }
 
-    public String get(String endpoint)
+    /**
+     * Sends an HTTP GET request to the API.
+     */
+    public String get(
+            String endpoint)
             throws IOException, InterruptedException {
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(buildUri(endpoint))
-                .header("Accept", "application/json")
-                .GET()
-                .build();
+        HttpRequest request =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        BASE_URL
+                                        + endpoint
+                                )
+                        )
+                        .GET()
+                        .header(
+                                "Accept",
+                                "application/json"
+                        )
+                        .build();
 
         HttpResponse<String> response =
                 httpClient.send(
@@ -38,35 +52,50 @@ public class ApiClient {
                         HttpResponse.BodyHandlers.ofString()
                 );
 
-        validateResponse(response);
+        validateResponse(
+                response
+        );
 
         return response.body();
     }
 
+    /**
+     * Sends an HTTP POST request using
+     * application/x-www-form-urlencoded.
+     */
     public String post(
             String endpoint,
             Map<String, String> formData)
             throws IOException, InterruptedException {
 
-        String encodedBody =
-                encodeFormData(formData);
+        String encodedForm =
+                encodeFormData(
+                        formData
+                );
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(buildUri(endpoint))
-                .header(
-                        "Content-Type",
-                        "application/x-www-form-urlencoded"
-                )
-                .header(
-                        "Accept",
-                        "application/json"
-                )
-                .POST(
-                        HttpRequest.BodyPublishers.ofString(
-                                encodedBody
+        HttpRequest request =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        BASE_URL
+                                        + endpoint
+                                )
                         )
-                )
-                .build();
+                        .header(
+                                "Content-Type",
+                                "application/x-www-form-urlencoded"
+                        )
+                        .header(
+                                "Accept",
+                                "application/json"
+                        )
+                        .POST(
+                                HttpRequest.BodyPublishers
+                                        .ofString(
+                                                encodedForm
+                                        )
+                        )
+                        .build();
 
         HttpResponse<String> response =
                 httpClient.send(
@@ -74,56 +103,107 @@ public class ApiClient {
                         HttpResponse.BodyHandlers.ofString()
                 );
 
-        validateResponse(response);
+        validateResponse(
+                response
+        );
 
         return response.body();
     }
 
-    private URI buildUri(String endpoint) {
+    /**
+     * Sends an HTTP PUT request using
+     * application/x-www-form-urlencoded.
+     *
+     * Used when existing resources such as
+     * patients are updated.
+     */
+    public String put(
+            String endpoint,
+            Map<String, String> formData)
+            throws IOException, InterruptedException {
 
-        if (endpoint == null || endpoint.isBlank()) {
-            throw new IllegalArgumentException(
-                    "API endpoint is required."
-            );
-        }
+        String encodedForm =
+                encodeFormData(
+                        formData
+                );
 
-        String normalizedEndpoint =
-                endpoint.startsWith("/")
-                        ? endpoint
-                        : "/" + endpoint;
+        HttpRequest request =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        BASE_URL
+                                        + endpoint
+                                )
+                        )
+                        .header(
+                                "Content-Type",
+                                "application/x-www-form-urlencoded"
+                        )
+                        .header(
+                                "Accept",
+                                "application/json"
+                        )
+                        .PUT(
+                                HttpRequest.BodyPublishers
+                                        .ofString(
+                                                encodedForm
+                                        )
+                        )
+                        .build();
 
-        return URI.create(
-                API_BASE_URL + normalizedEndpoint
+        HttpResponse<String> response =
+                httpClient.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofString()
+                );
+
+        validateResponse(
+                response
         );
+
+        return response.body();
     }
 
+    /**
+     * Converts form values into standard
+     * URL-encoded request data.
+     */
     private String encodeFormData(
             Map<String, String> formData) {
 
-        if (formData == null || formData.isEmpty()) {
-            return "";
-        }
-
         return formData.entrySet()
                 .stream()
-                .map(entry ->
-                        encode(entry.getKey())
-                        + "="
-                        + encode(entry.getValue())
+                .map(
+                        entry ->
+                                encode(
+                                        entry.getKey()
+                                )
+                                + "="
+                                + encode(
+                                        entry.getValue()
+                                )
                 )
                 .collect(
                         Collectors.joining("&")
                 );
     }
 
-    private String encode(String value) {
+    private String encode(
+            String value) {
+
+        if (value == null) {
+            return "";
+        }
 
         return URLEncoder.encode(
-                value == null ? "" : value,
+                value,
                 StandardCharsets.UTF_8
         );
     }
 
+    /**
+     * Accept only successful 2xx HTTP responses.
+     */
     private void validateResponse(
             HttpResponse<String> response)
             throws IOException {
@@ -131,10 +211,11 @@ public class ApiClient {
         int statusCode =
                 response.statusCode();
 
-        if (statusCode < 200 || statusCode >= 300) {
+        if (statusCode < 200
+                || statusCode >= 300) {
 
             throw new IOException(
-                    "API request failed with HTTP "
+                    "API request failed. HTTP "
                     + statusCode
                     + ": "
                     + response.body()

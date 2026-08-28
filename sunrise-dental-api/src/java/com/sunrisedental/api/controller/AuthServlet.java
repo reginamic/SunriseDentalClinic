@@ -10,9 +10,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.sql.SQLException;
 
-@WebServlet("/api/auth")
+@WebServlet(
+        name = "AuthServlet",
+        urlPatterns = {"/api/auth"}
+)
 public class AuthServlet extends HttpServlet {
 
     private static final String JSON_CONTENT_TYPE =
@@ -32,18 +36,19 @@ public class AuthServlet extends HttpServlet {
 
         configureJsonResponse(response);
 
+        String username =
+                normalize(
+                        request.getParameter(
+                                "username"
+                        )
+                );
+
+        String password =
+                request.getParameter(
+                        "password"
+                );
+
         try {
-
-            String username =
-                    getTrimmedParameter(
-                            request,
-                            "username"
-                    );
-
-            String password =
-                    request.getParameter(
-                            "password"
-                    );
 
             User authenticatedUser =
                     authService.authenticate(
@@ -55,17 +60,61 @@ public class AuthServlet extends HttpServlet {
                     HttpServletResponse.SC_OK
             );
 
-            writeSuccessResponse(
-                    response,
-                    authenticatedUser
-            );
+            try (PrintWriter out =
+                    response.getWriter()) {
+
+                out.print("{");
+
+                out.print(
+                        "\"authenticated\":true,"
+                );
+
+                out.print(
+                        "\"userId\":"
+                        + authenticatedUser.getUserId()
+                        + ","
+                );
+
+                out.print(
+                        "\"username\":\""
+                        + escapeJson(
+                                authenticatedUser
+                                        .getUsername()
+                        )
+                        + "\","
+                );
+
+                out.print(
+                        "\"fullName\":\""
+                        + escapeJson(
+                                authenticatedUser
+                                        .getFullName()
+                        )
+                        + "\","
+                );
+
+                out.print(
+                        "\"role\":\""
+                        + escapeJson(
+                                authenticatedUser
+                                        .getRole()
+                        )
+                        + "\""
+                );
+
+                out.print("}");
+            }
 
         } catch (IllegalArgumentException exception) {
 
+            /*
+             * Do not reveal whether the username
+             * or password was incorrect.
+             */
             sendErrorResponse(
                     response,
                     HttpServletResponse.SC_UNAUTHORIZED,
-                    exception.getMessage()
+                    "Invalid username or password."
             );
 
         } catch (SQLException exception) {
@@ -77,49 +126,26 @@ public class AuthServlet extends HttpServlet {
 
             sendErrorResponse(
                     response,
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "Unable to process login request."
+                    HttpServletResponse
+                            .SC_INTERNAL_SERVER_ERROR,
+                    "Authentication service unavailable."
             );
         }
     }
 
-    private String getTrimmedParameter(
+    @Override
+    protected void doGet(
             HttpServletRequest request,
-            String parameterName) {
+            HttpServletResponse response)
+            throws ServletException, IOException {
 
-        String value =
-                request.getParameter(
-                        parameterName
-                );
+        configureJsonResponse(response);
 
-        return value == null
-                ? null
-                : value.trim();
-    }
-
-    private void writeSuccessResponse(
-            HttpServletResponse response,
-            User user)
-            throws IOException {
-
-        response.getWriter().print(
-                "{"
-                + "\"authenticated\":true,"
-                + "\"user\":{"
-                + "\"userId\":"
-                + user.getUserId()
-                + ","
-                + "\"username\":\""
-                + escapeJson(user.getUsername())
-                + "\","
-                + "\"fullName\":\""
-                + escapeJson(user.getFullName())
-                + "\","
-                + "\"role\":\""
-                + escapeJson(user.getRole())
-                + "\""
-                + "}"
-                + "}"
+        sendErrorResponse(
+                response,
+                HttpServletResponse
+                        .SC_METHOD_NOT_ALLOWED,
+                "POST request required."
         );
     }
 
@@ -137,22 +163,31 @@ public class AuthServlet extends HttpServlet {
 
     private void sendErrorResponse(
             HttpServletResponse response,
-            int statusCode,
+            int status,
             String message)
             throws IOException {
 
-        response.setStatus(
-                statusCode
-        );
+        response.setStatus(status);
 
-        response.getWriter().print(
-                "{"
-                + "\"authenticated\":false,"
-                + "\"error\":\""
-                + escapeJson(message)
-                + "\""
-                + "}"
-        );
+        try (PrintWriter out =
+                response.getWriter()) {
+
+            out.print(
+                    "{\"error\":\""
+                    + escapeJson(message)
+                    + "\"}"
+            );
+        }
+    }
+
+    private String normalize(
+            String value) {
+
+        if (value == null) {
+            return null;
+        }
+
+        return value.trim();
     }
 
     private String escapeJson(

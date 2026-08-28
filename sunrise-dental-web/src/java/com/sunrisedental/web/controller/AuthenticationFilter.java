@@ -16,11 +16,21 @@ import java.io.IOException;
 @WebFilter(
         urlPatterns = {
             "/dashboard",
+
             "/patients",
+            "/patients/*",
+
             "/dentists",
+            "/dentists/*",
+
             "/treatments",
+            "/treatments/*",
+
             "/appointments",
-            "/bills"
+            "/appointments/*",
+
+            "/bills",
+            "/bills/*"
         }
 )
 public class AuthenticationFilter implements Filter {
@@ -47,8 +57,12 @@ public class AuthenticationFilter implements Filter {
                 (HttpServletResponse) response;
 
         /*
-         * Prevent protected pages from being stored
-         * in the browser cache.
+         * Prevent authenticated clinic pages
+         * from being stored in browser cache.
+         *
+         * This helps prevent users from seeing
+         * protected pages through the browser
+         * Back button after logout.
          */
         httpResponse.setHeader(
                 "Cache-Control",
@@ -65,6 +79,12 @@ public class AuthenticationFilter implements Filter {
                 0
         );
 
+        /*
+         * Retrieve the existing session only.
+         *
+         * Do not create a new session for an
+         * unauthenticated request.
+         */
         HttpSession session =
                 httpRequest.getSession(false);
 
@@ -74,6 +94,9 @@ public class AuthenticationFilter implements Filter {
                 && session.getAttribute("username") != null
                 && session.getAttribute("role") != null;
 
+        /*
+         * Block unauthenticated access.
+         */
         if (!authenticated) {
 
             httpResponse.sendRedirect(
@@ -85,8 +108,9 @@ public class AuthenticationFilter implements Filter {
         }
 
         /*
-         * User is authenticated.
-         * Allow request to continue.
+         * The user has a valid authenticated
+         * session, so continue to the requested
+         * controller.
          */
         chain.doFilter(
                 request,
