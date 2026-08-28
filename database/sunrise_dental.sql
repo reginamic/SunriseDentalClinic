@@ -478,3 +478,14 @@ VALUES
      FROM users
      WHERE username = 'reception')
 );
+
+
+
+
+
+
+
+
+-- Ensure billing tables support transactions and rollback
+ALTER TABLE bills ENGINE = InnoDB;
+ALTER TABLE bill_items ENGINE = InnoDB;
