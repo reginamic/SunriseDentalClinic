@@ -15,6 +15,12 @@ import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.List;
 
+
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+
 @WebServlet("/api/treatments")
 public class TreatmentServlet extends HttpServlet {
 
@@ -116,94 +122,349 @@ public class TreatmentServlet extends HttpServlet {
         }
     }
 
-    @Override
-    protected void doPut(
-            HttpServletRequest request,
-            HttpServletResponse response)
-            throws ServletException, IOException {
+ @Override
+protected void doPut(
+        HttpServletRequest request,
+        HttpServletResponse response)
+        throws ServletException, IOException {
 
-        configureJsonResponse(response);
+    configureJsonResponse(response);
 
-        try {
+    try {
 
-            int treatmentId =
-                    parseTreatmentId(request);
+        Map<String, String> formData =
+                parsePutFormData(request);
 
-            Treatment treatment =
-                    buildTreatmentFromRequest(request);
+        int treatmentId =
+                parseTreatmentId(formData);
 
-            treatment.setTreatmentId(treatmentId);
+        Treatment treatment =
+                buildTreatmentFromPutData(formData);
 
-            String activeParameter =
-                    getTrimmedParameter(
-                            request,
-                            "active"
-                    );
+        treatment.setTreatmentId(
+                treatmentId
+        );
 
-            if (activeParameter != null) {
-
-                treatment.setActive(
-                        Boolean.parseBoolean(activeParameter)
+        String activeParameter =
+                getPutValue(
+                        formData,
+                        "active"
                 );
 
-            } else {
+        if (activeParameter != null
+                && !activeParameter.isBlank()) {
 
-                Treatment existingTreatment =
-                        treatmentService
-                                .getTreatmentById(treatmentId)
-                                .orElseThrow(() ->
-                                        new IllegalArgumentException(
-                                                "Treatment not found."
-                                        )
-                                );
-
-                treatment.setActive(
-                        existingTreatment.isActive()
-                );
-            }
-
-            boolean updated =
-                    treatmentService.updateTreatment(treatment);
-
-            if (!updated) {
-
-                sendErrorResponse(
-                        response,
-                        HttpServletResponse.SC_NOT_FOUND,
-                        "Treatment not found."
-                );
-
-                return;
-            }
-
-            writeMessageWithTreatment(
-                    response,
-                    "Treatment updated successfully.",
-                    treatment
+            treatment.setActive(
+                    Boolean.parseBoolean(
+                            activeParameter
+                    )
             );
 
-        } catch (IllegalArgumentException exception) {
+        } else {
 
-            sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST,
-                    exception.getMessage()
-            );
+            Treatment existingTreatment =
+                    treatmentService
+                            .getTreatmentById(
+                                    treatmentId
+                            )
+                            .orElseThrow(() ->
+                                    new IllegalArgumentException(
+                                            "Treatment not found."
+                                    )
+                            );
 
-        } catch (SQLException exception) {
-
-            logError(
-                    "Unable to update treatment.",
-                    exception
-            );
-
-            sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "Unable to update treatment."
+            treatment.setActive(
+                    existingTreatment.isActive()
             );
         }
+
+        boolean updated =
+                treatmentService
+                        .updateTreatment(
+                                treatment
+                        );
+
+        if (!updated) {
+
+            sendErrorResponse(
+                    response,
+                    HttpServletResponse.SC_NOT_FOUND,
+                    "Treatment not found."
+            );
+
+            return;
+        }
+
+        writeMessageWithTreatment(
+                response,
+                "Treatment updated successfully.",
+                treatment
+        );
+
+    } catch (IllegalArgumentException exception) {
+
+        sendErrorResponse(
+                response,
+                HttpServletResponse.SC_BAD_REQUEST,
+                exception.getMessage()
+        );
+
+    } catch (SQLException exception) {
+
+        logError(
+                "Unable to update treatment.",
+                exception
+        );
+
+        sendErrorResponse(
+                response,
+                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to update treatment."
+        );
     }
+}
+
+
+
+private Map<String, String> parsePutFormData(
+        HttpServletRequest request)
+        throws IOException {
+
+    byte[] bodyBytes =
+            request.getInputStream()
+                    .readAllBytes();
+
+    String requestBody =
+            new String(
+                    bodyBytes,
+                    StandardCharsets.UTF_8
+            );
+
+    Map<String, String> formData =
+            new HashMap<>();
+
+    if (requestBody.isBlank()) {
+        return formData;
+    }
+
+    String[] parameters =
+            requestBody.split("&");
+
+    for (String parameter : parameters) {
+
+        int equalsIndex =
+                parameter.indexOf('=');
+
+        String encodedKey;
+
+        String encodedValue;
+
+        if (equalsIndex >= 0) {
+
+            encodedKey =
+                    parameter.substring(
+                            0,
+                            equalsIndex
+                    );
+
+            encodedValue =
+                    parameter.substring(
+                            equalsIndex + 1
+                    );
+
+        } else {
+
+            encodedKey =
+                    parameter;
+
+            encodedValue =
+                    "";
+        }
+
+        String key =
+                URLDecoder.decode(
+                        encodedKey,
+                        StandardCharsets.UTF_8
+                );
+
+        String value =
+                URLDecoder.decode(
+                        encodedValue,
+                        StandardCharsets.UTF_8
+                );
+
+        formData.put(
+                key,
+                value.trim()
+        );
+    }
+
+    return formData;
+}
+
+
+private Treatment buildTreatmentFromPutData(
+        Map<String, String> formData) {
+
+    Treatment treatment =
+            new Treatment();
+
+    treatment.setTreatmentName(
+            getPutValue(
+                    formData,
+                    "treatmentName"
+            )
+    );
+
+    treatment.setDescription(
+            getPutValue(
+                    formData,
+                    "description"
+            )
+    );
+
+    treatment.setTreatmentPrice(
+            parseBigDecimalValue(
+                    formData,
+                    "treatmentPrice"
+            )
+    );
+
+    treatment.setConsultationFee(
+            parseBigDecimalValue(
+                    formData,
+                    "consultationFee"
+            )
+    );
+
+    treatment.setEstimatedDurationMinutes(
+            parseOptionalIntegerValue(
+                    formData,
+                    "estimatedDurationMinutes"
+            )
+    );
+
+    return treatment;
+}
+
+
+private int parseTreatmentId(
+        Map<String, String> formData) {
+
+    String value =
+            getPutValue(
+                    formData,
+                    "treatmentId"
+            );
+
+    if (value == null
+            || value.isBlank()) {
+
+        throw new IllegalArgumentException(
+                "Treatment ID is required."
+        );
+    }
+
+    try {
+
+        int treatmentId =
+                Integer.parseInt(value);
+
+        if (treatmentId <= 0) {
+
+            throw new IllegalArgumentException(
+                    "Treatment ID must be greater than zero."
+            );
+        }
+
+        return treatmentId;
+
+    } catch (NumberFormatException exception) {
+
+        throw new IllegalArgumentException(
+                "Treatment ID must be a valid number."
+        );
+    }
+}
+
+
+private BigDecimal parseBigDecimalValue(
+        Map<String, String> formData,
+        String parameterName) {
+
+    String value =
+            getPutValue(
+                    formData,
+                    parameterName
+            );
+
+    if (value == null
+            || value.isBlank()) {
+
+        return null;
+    }
+
+    try {
+
+        return new BigDecimal(
+                value
+        );
+
+    } catch (NumberFormatException exception) {
+
+        throw new IllegalArgumentException(
+                parameterName
+                        + " must be a valid number."
+        );
+    }
+}
+
+
+private Integer parseOptionalIntegerValue(
+        Map<String, String> formData,
+        String parameterName) {
+
+    String value =
+            getPutValue(
+                    formData,
+                    parameterName
+            );
+
+    if (value == null
+            || value.isBlank()) {
+
+        return null;
+    }
+
+    try {
+
+        return Integer.valueOf(
+                value
+        );
+
+    } catch (NumberFormatException exception) {
+
+        throw new IllegalArgumentException(
+                parameterName
+                        + " must be a valid integer."
+        );
+    }
+}
+
+
+private String getPutValue(
+        Map<String, String> formData,
+        String parameterName) {
+
+    String value =
+            formData.get(
+                    parameterName
+            );
+
+    return value == null
+            ? null
+            : value.trim();
+}
 
     private Treatment buildTreatmentFromRequest(
             HttpServletRequest request) {
