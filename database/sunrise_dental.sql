@@ -1,5 +1,3 @@
-
-
 CREATE DATABASE IF NOT EXISTS sunrise_dental_db
 CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
@@ -7,8 +5,10 @@ COLLATE utf8mb4_unicode_ci;
 USE sunrise_dental_db;
 
 
+-- =====================================================
 -- TABLE: users
-
+-- Stores application users and role information
+-- =====================================================
 
 CREATE TABLE users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -23,11 +23,10 @@ CREATE TABLE users (
 );
 
 
-
 -- =====================================================
 -- TABLE: patients
 -- Stores patient personal and contact information
-
+-- =====================================================
 
 CREATE TABLE patients (
     patient_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -46,11 +45,10 @@ CREATE TABLE patients (
 );
 
 
-
-
+-- =====================================================
 -- TABLE: dentists
 -- Stores dentist information
-
+-- =====================================================
 
 CREATE TABLE dentists (
     dentist_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -66,11 +64,10 @@ CREATE TABLE dentists (
 );
 
 
-
-
+-- =====================================================
 -- TABLE: treatments
 -- Stores dental treatment types and pricing
-
+-- =====================================================
 
 CREATE TABLE treatments (
     treatment_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,10 +86,10 @@ CREATE TABLE treatments (
 );
 
 
-
+-- =====================================================
 -- TABLE: appointments
 -- Stores patient appointment information
-
+-- =====================================================
 
 CREATE TABLE appointments (
     appointment_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -108,7 +105,8 @@ CREATE TABLE appointments (
     status ENUM('SCHEDULED', 'COMPLETED', 'CANCELLED')
         NOT NULL DEFAULT 'SCHEDULED',
 
-    notes VARCHAR(500),
+    -- Aligned with AppointmentService validation.
+    notes VARCHAR(1000),
 
     created_by INT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -132,18 +130,18 @@ CREATE TABLE appointments (
 
     CONSTRAINT fk_appointments_created_by
         FOREIGN KEY (created_by)
-        REFERENCES users(user_id),
-
-    CONSTRAINT uq_dentist_date_time
-        UNIQUE (dentist_id, appointment_date, appointment_time)
+        REFERENCES users(user_id)
 );
 
+-- NOTE: No UNIQUE(dentist_id, appointment_date, appointment_time) constraint
+-- is used here. Duration-aware overlap validation is handled by the
+-- appointment business layer and CANCELLED appointments release time slots.
 
 
-
+-- =====================================================
 -- TABLE: bills
 -- Stores billing summary for completed appointments
-
+-- =====================================================
 
 CREATE TABLE bills (
     bill_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -190,10 +188,10 @@ CREATE TABLE bills (
 );
 
 
-
-
+-- =====================================================
 -- TABLE: bill_items
 -- Stores individual bill line items
+-- =====================================================
 
 CREATE TABLE bill_items (
     bill_item_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -226,12 +224,11 @@ CREATE TABLE bill_items (
 );
 
 
-
-
+-- =====================================================
 -- TABLE: appointment_history
 -- Stores previous appointment states for audit/history
 -- Supports the Memento design pattern
-
+-- =====================================================
 
 CREATE TABLE appointment_history (
     history_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -249,7 +246,8 @@ CREATE TABLE appointment_history (
     status ENUM('SCHEDULED', 'COMPLETED', 'CANCELLED')
         NOT NULL,
 
-    notes VARCHAR(500),
+    -- Matches the appointments.notes capacity.
+    notes VARCHAR(1000),
 
     changed_by INT NOT NULL,
     change_type ENUM('UPDATE', 'CANCEL')
@@ -280,10 +278,10 @@ CREATE TABLE appointment_history (
 );
 
 
-
+-- =====================================================
 -- TABLE: audit_logs
 -- Records important system actions
-
+-- =====================================================
 
 CREATE TABLE audit_logs (
     audit_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -306,12 +304,10 @@ CREATE TABLE audit_logs (
 );
 
 
-
-
-
+-- =====================================================
 -- INDEXES
 -- Improve common search and reporting performance
-
+-- =====================================================
 
 CREATE INDEX idx_patients_full_name
 ON patients(full_name);
@@ -338,10 +334,9 @@ CREATE INDEX idx_bills_generated_at
 ON bills(generated_at);
 
 
-
-
+-- =====================================================
 -- INITIAL TREATMENT DATA
-
+-- =====================================================
 
 INSERT INTO treatments
 (treatment_code, treatment_name, description, treatment_price, consultation_fee, estimated_duration_minutes)
@@ -371,11 +366,10 @@ VALUES
  12000.00, 1500.00, 60);
 
 
-
-
+-- =====================================================
 -- INITIAL DENTIST DATA
 -- Sample data used for system development and testing
-
+-- =====================================================
 
 INSERT INTO dentists
 (dentist_code, full_name, specialization, contact_number, email)
@@ -389,12 +383,11 @@ VALUES
 ('DEN-004', 'Dr. Shalini Jayawardena', 'Cosmetic Dentistry', '0774567890', 'shalini.j@sunrisedental.lk');
 
 
-
-
-
+-- =====================================================
 -- INITIAL SYSTEM USERS
--- Passwords stored as SHA-256 hashes, not plain text
-
+-- Passwords are securely stored using salted
+-- PBKDF2-HMAC-SHA256 hashes rather than plain text.
+-- =====================================================
 
 INSERT INTO users
 (username, password_hash, full_name, role)
@@ -413,12 +406,10 @@ VALUES
 );
 
 
-
-
-
+-- =====================================================
 -- SAMPLE PATIENT DATA
 -- Used for development and database testing
-
+-- =====================================================
 
 INSERT INTO patients
 (patient_code, full_name, address, contact_number, email, date_of_birth, gender)
@@ -434,12 +425,10 @@ VALUES
 );
 
 
-
-
-
+-- =====================================================
 -- SAMPLE VALID APPOINTMENT
 -- Used to verify foreign-key relationships
-
+-- =====================================================
 
 INSERT INTO appointments
 (
@@ -480,12 +469,21 @@ VALUES
 );
 
 
+-- =====================================================
+-- TRANSACTION SUPPORT
+-- Billing operations require transactional storage.
+-- =====================================================
 
-
-
-
-
-
--- Ensure billing tables support transactions and rollback
 ALTER TABLE bills ENGINE = InnoDB;
 ALTER TABLE bill_items ENGINE = InnoDB;
+
+
+-- =====================================================
+-- IMPORTANT
+-- Advanced appointment database objects are intentionally
+-- maintained separately in:
+-- database/appointment_management_advanced.sql
+--
+-- Verification queries are maintained separately in:
+-- database/appointment_management_tests.sql
+-- =====================================================
