@@ -1,6 +1,7 @@
 package com.sunrisedental.api.service;
 
 import com.sunrisedental.api.model.Appointment;
+import com.sunrisedental.api.model.AppointmentDetails;
 import com.sunrisedental.api.model.AppointmentStatus;
 
 import com.sunrisedental.api.pattern.chainofresponsibility.AppointmentValidationContext;
@@ -13,12 +14,14 @@ import com.sunrisedental.api.pattern.chainofresponsibility.TreatmentValidationHa
 
 import com.sunrisedental.api.pattern.memento.AppointmentMemento;
 
+import com.sunrisedental.api.repository.AppointmentDetailsRepository;
 import com.sunrisedental.api.repository.AppointmentHistoryRepository;
 import com.sunrisedental.api.repository.AppointmentRepository;
 import com.sunrisedental.api.repository.DentistRepository;
 import com.sunrisedental.api.repository.PatientRepository;
 import com.sunrisedental.api.repository.TreatmentRepository;
 
+import com.sunrisedental.api.repository.impl.JdbcAppointmentDetailsRepository;
 import com.sunrisedental.api.repository.impl.JdbcAppointmentHistoryRepository;
 import com.sunrisedental.api.repository.impl.JdbcAppointmentRepository;
 import com.sunrisedental.api.repository.impl.JdbcDentistRepository;
@@ -26,18 +29,43 @@ import com.sunrisedental.api.repository.impl.JdbcPatientRepository;
 import com.sunrisedental.api.repository.impl.JdbcTreatmentRepository;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * Business service for Appointment Management.
+ *
+ * Responsibilities:
+ * - appointment creation
+ * - appointment searching
+ * - rescheduling
+ * - cancellation/completion lifecycle
+ * - Chain of Responsibility validation
+ * - Memento history creation
+ * - enriched appointment-detail retrieval
+ */
 public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
+
     private final PatientRepository patientRepository;
+
     private final DentistRepository dentistRepository;
+
     private final TreatmentRepository treatmentRepository;
-    private final AppointmentHistoryRepository appointmentHistoryRepository;
+
+    private final AppointmentHistoryRepository
+            appointmentHistoryRepository;
+
+    /*
+     * Read-only repository backed by
+     * vw_appointment_details.
+     */
+    private final AppointmentDetailsRepository
+            appointmentDetailsRepository;
 
     /*
      * Root handler of the Appointment
@@ -46,11 +74,10 @@ public class AppointmentService {
     private final AppointmentValidationHandler
             schedulingValidationChain;
 
-    /*
-     * =========================================================
-     * CONSTRUCTORS
-     * =========================================================
-     */
+
+    // =========================================================
+    // CONSTRUCTORS
+    // =========================================================
 
     /**
      * Used by the real application.
@@ -62,15 +89,17 @@ public class AppointmentService {
                 new JdbcPatientRepository(),
                 new JdbcDentistRepository(),
                 new JdbcTreatmentRepository(),
-                new JdbcAppointmentHistoryRepository()
+                new JdbcAppointmentHistoryRepository(),
+                new JdbcAppointmentDetailsRepository()
         );
     }
+
 
     /**
      * Backward-compatible dependency-injection constructor.
      *
-     * Existing tests/callers that inject the four core
-     * repositories can continue to compile.
+     * Existing tests/callers using four repositories
+     * continue to compile.
      */
     public AppointmentService(
             AppointmentRepository appointmentRepository,
@@ -83,23 +112,52 @@ public class AppointmentService {
                 patientRepository,
                 dentistRepository,
                 treatmentRepository,
-                new JdbcAppointmentHistoryRepository()
+                new JdbcAppointmentHistoryRepository(),
+                new JdbcAppointmentDetailsRepository()
         );
     }
 
+
     /**
-     * Full dependency-injection constructor.
+     * Backward-compatible five-repository constructor.
      *
-     * Repository interfaces are injected so the service
-     * and its validation chain can later be unit tested
-     * using mocks or fake repositories.
+     * Existing tests created for Memento/history
+     * continue to compile.
      */
     public AppointmentService(
             AppointmentRepository appointmentRepository,
             PatientRepository patientRepository,
             DentistRepository dentistRepository,
             TreatmentRepository treatmentRepository,
-            AppointmentHistoryRepository appointmentHistoryRepository) {
+            AppointmentHistoryRepository
+                    appointmentHistoryRepository) {
+
+        this(
+                appointmentRepository,
+                patientRepository,
+                dentistRepository,
+                treatmentRepository,
+                appointmentHistoryRepository,
+                new JdbcAppointmentDetailsRepository()
+        );
+    }
+
+
+    /**
+     * Full dependency-injection constructor.
+     *
+     * All repositories can be replaced with mocks/fakes
+     * during automated unit testing.
+     */
+    public AppointmentService(
+            AppointmentRepository appointmentRepository,
+            PatientRepository patientRepository,
+            DentistRepository dentistRepository,
+            TreatmentRepository treatmentRepository,
+            AppointmentHistoryRepository
+                    appointmentHistoryRepository,
+            AppointmentDetailsRepository
+                    appointmentDetailsRepository) {
 
         this.appointmentRepository =
                 Objects.requireNonNull(
@@ -131,24 +189,30 @@ public class AppointmentService {
                         "AppointmentHistoryRepository cannot be null."
                 );
 
+        this.appointmentDetailsRepository =
+                Objects.requireNonNull(
+                        appointmentDetailsRepository,
+                        "AppointmentDetailsRepository cannot be null."
+                );
+
         /*
-         * Build the Chain of Responsibility once.
+         * Build Chain of Responsibility once.
          */
         this.schedulingValidationChain =
                 buildSchedulingValidationChain();
     }
 
-    /*
-     * =========================================================
-     * READ OPERATIONS
-     * =========================================================
-     */
+
+    // =========================================================
+    // BASIC APPOINTMENT READ OPERATIONS
+    // =========================================================
 
     public List<Appointment> getAllAppointments()
             throws SQLException {
 
         return appointmentRepository.findAll();
     }
+
 
     public Optional<Appointment> getAppointmentById(
             int appointmentId)
@@ -165,6 +229,7 @@ public class AppointmentService {
                 appointmentId
         );
     }
+
 
     public Optional<Appointment> getAppointmentByNumber(
             String appointmentNumber)
@@ -184,8 +249,9 @@ public class AppointmentService {
         );
     }
 
+
     public List<Appointment> getAppointmentsByDate(
-            java.time.LocalDate appointmentDate)
+            LocalDate appointmentDate)
             throws SQLException {
 
         if (appointmentDate == null) {
@@ -199,6 +265,7 @@ public class AppointmentService {
                 appointmentDate
         );
     }
+
 
     public List<Appointment> getAppointmentsByPatient(
             int patientId)
@@ -216,29 +283,140 @@ public class AppointmentService {
         );
     }
 
-    /*
-     * =========================================================
-     * CREATE APPOINTMENT
-     * =========================================================
+
+    // =========================================================
+    // ENRICHED APPOINTMENT DETAIL READ OPERATIONS
+    // =========================================================
+
+    /**
+     * Returns all appointments with complete patient,
+     * dentist and treatment information.
+     *
+     * Data comes from vw_appointment_details.
      */
+    public List<AppointmentDetails>
+            getAllAppointmentDetails()
+            throws SQLException {
+
+        return appointmentDetailsRepository
+                .findAll();
+    }
+
+
+    /**
+     * Returns complete appointment information
+     * using the internal database ID.
+     */
+    public Optional<AppointmentDetails>
+            getAppointmentDetailsById(
+                    int appointmentId)
+            throws SQLException {
+
+        if (appointmentId <= 0) {
+
+            throw new IllegalArgumentException(
+                    "Appointment ID must be greater than zero."
+            );
+        }
+
+        return appointmentDetailsRepository
+                .findById(
+                        appointmentId
+                );
+    }
+
+
+    /**
+     * Returns complete appointment information
+     * using the public appointment number.
+     */
+    public Optional<AppointmentDetails>
+            getAppointmentDetailsByNumber(
+                    String appointmentNumber)
+            throws SQLException {
+
+        if (isBlank(appointmentNumber)) {
+
+            throw new IllegalArgumentException(
+                    "Appointment number is required."
+            );
+        }
+
+        return appointmentDetailsRepository
+                .findByAppointmentNumber(
+                        appointmentNumber
+                                .trim()
+                                .toUpperCase()
+                );
+    }
+
+
+    /**
+     * Returns complete appointment information
+     * for a selected date.
+     */
+    public List<AppointmentDetails>
+            getAppointmentDetailsByDate(
+                    LocalDate appointmentDate)
+            throws SQLException {
+
+        if (appointmentDate == null) {
+
+            throw new IllegalArgumentException(
+                    "Appointment date is required."
+            );
+        }
+
+        return appointmentDetailsRepository
+                .findByDate(
+                        appointmentDate
+                );
+    }
+
+
+    /**
+     * Returns complete appointment information
+     * for one patient.
+     */
+    public List<AppointmentDetails>
+            getAppointmentDetailsByPatient(
+                    int patientId)
+            throws SQLException {
+
+        if (patientId <= 0) {
+
+            throw new IllegalArgumentException(
+                    "Valid patient ID is required."
+            );
+        }
+
+        return appointmentDetailsRepository
+                .findByPatientId(
+                        patientId
+                );
+    }
+
+
+    // =========================================================
+    // CREATE APPOINTMENT
+    // =========================================================
 
     public Appointment createAppointment(
             Appointment appointment)
             throws SQLException {
 
         /*
-         * Validate fields that belong to the service itself.
+         * Service-level validation.
          *
-         * Patient/dentist/treatment/date/time/conflict rules
-         * are intentionally handled by the Chain.
+         * Scheduling-specific validation is delegated
+         * to the Chain of Responsibility.
          */
         validateCommonAppointmentData(
                 appointment
         );
 
         /*
-         * All newly registered appointments begin as scheduled
-         * unless no explicit status has been supplied.
+         * New appointments default to SCHEDULED.
          */
         if (appointment.getStatus() == null) {
 
@@ -266,8 +444,7 @@ public class AppointmentService {
         );
 
         /*
-         * Appointment number is generated only after
-         * all business validation succeeds.
+         * Generate number only after validation passes.
          */
         appointment.setAppointmentNumber(
                 generateAppointmentNumber()
@@ -278,17 +455,16 @@ public class AppointmentService {
         );
     }
 
-    /*
-     * =========================================================
-     * TEMPORARY BACKWARD-COMPATIBLE UPDATE
-     * =========================================================
-     */
+
+    // =========================================================
+    // BACKWARD-COMPATIBLE UPDATE
+    // =========================================================
 
     /**
-     * Maintained temporarily for older internal callers.
+     * Temporary compatibility method for older callers.
      *
-     * The actual web/API workflow uses the overload that
-     * supplies changedBy explicitly.
+     * New Web/API operations should use the overload
+     * supplying changedBy explicitly.
      */
     @Deprecated
     public boolean updateAppointment(
@@ -312,7 +488,8 @@ public class AppointmentService {
         Appointment existingAppointment =
                 appointmentRepository
                         .findById(
-                                appointment.getAppointmentId()
+                                appointment
+                                        .getAppointmentId()
                         )
                         .orElseThrow(() ->
                                 new IllegalArgumentException(
@@ -322,15 +499,15 @@ public class AppointmentService {
 
         return updateAppointment(
                 appointment,
-                existingAppointment.getCreatedBy()
+                existingAppointment
+                        .getCreatedBy()
         );
     }
 
-    /*
-     * =========================================================
-     * UPDATE / RESCHEDULE / CANCEL
-     * =========================================================
-     */
+
+    // =========================================================
+    // UPDATE / RESCHEDULE / CANCEL / COMPLETE
+    // =========================================================
 
     public boolean updateAppointment(
             Appointment appointment,
@@ -359,12 +536,13 @@ public class AppointmentService {
         }
 
         /*
-         * Load the existing persistent state first.
+         * Load current persistent state.
          */
         Appointment existingAppointment =
                 appointmentRepository
                         .findById(
-                                appointment.getAppointmentId()
+                                appointment
+                                        .getAppointmentId()
                         )
                         .orElseThrow(() ->
                                 new IllegalArgumentException(
@@ -372,18 +550,19 @@ public class AppointmentService {
                                 )
                         );
 
+
         /*
          * =====================================================
          * MEMENTO PATTERN
          * =====================================================
          *
-         * Capture the immutable OLD state before any
-         * appointment information is modified.
+         * Capture OLD state before modification.
          */
         AppointmentMemento previousState =
                 new AppointmentMemento(
                         existingAppointment
                 );
+
 
         /*
          * Appointment number is immutable.
@@ -393,19 +572,18 @@ public class AppointmentService {
                         .getAppointmentNumber()
         );
 
+
         /*
-         * Preserve original appointment creator.
-         *
-         * changedBy represents the current user performing
-         * this particular modification.
+         * Preserve original creator.
          */
         appointment.setCreatedBy(
                 existingAppointment
                         .getCreatedBy()
         );
 
+
         /*
-         * Preserve existing status if PUT did not supply one.
+         * Preserve status when omitted.
          */
         if (appointment.getStatus() == null) {
 
@@ -415,20 +593,23 @@ public class AppointmentService {
             );
         }
 
+
         /*
-         * Validate appointment lifecycle.
+         * Lifecycle validation.
          */
         validateStatusTransition(
                 existingAppointment,
                 appointment
         );
 
+
         /*
-         * Validate service-level fields.
+         * Service-level validation.
          */
         validateCommonAppointmentData(
                 appointment
         );
+
 
         boolean schedulingDetailsChanged =
                 hasSchedulingDetailsChanged(
@@ -436,17 +617,17 @@ public class AppointmentService {
                         appointment
                 );
 
+
         boolean cancelling =
                 existingAppointment.getStatus()
                         != AppointmentStatus.CANCELLED
                 && appointment.getStatus()
                         == AppointmentStatus.CANCELLED;
 
+
         /*
-         * Cancellation preserves the original schedule.
-         *
-         * A request cannot move an appointment and cancel
-         * it simultaneously.
+         * A cancellation must preserve the existing
+         * appointment schedule.
          */
         if (cancelling
                 && schedulingDetailsChanged) {
@@ -457,13 +638,11 @@ public class AppointmentService {
             );
         }
 
+
         /*
          * =====================================================
          * CHAIN OF RESPONSIBILITY DURING RESCHEDULING
          * =====================================================
-         *
-         * If any scheduling field changes, the entire
-         * validation chain runs again.
          */
         if (schedulingDetailsChanged
                 && appointment.getStatus()
@@ -479,25 +658,20 @@ public class AppointmentService {
                         != AppointmentStatus.CANCELLED) {
 
             /*
-             * If scheduling information did not change,
-             * there is no reason to perform another conflict
-             * query.
+             * No scheduling change:
+             * avoid unnecessary overlap query.
              *
-             * We only verify that referenced records
-             * still exist.
-             *
-             * This allows legitimate status changes such as
-             * SCHEDULED → COMPLETED even if a dentist or
-             * treatment is later deactivated.
+             * Only verify references still exist.
              */
             validateReferencedEntitiesExist(
                     appointment
             );
         }
 
+
         /*
-         * Avoid meaningless history records when nothing
-         * actually changed.
+         * Do not create meaningless Memento/history
+         * records for an unchanged appointment.
          */
         boolean appointmentChanged =
                 hasAppointmentChanged(
@@ -510,8 +684,9 @@ public class AppointmentService {
             return true;
         }
 
+
         /*
-         * Persist the NEW appointment state.
+         * Persist the NEW state.
          */
         boolean updated =
                 appointmentRepository.update(
@@ -523,21 +698,19 @@ public class AppointmentService {
             return false;
         }
 
-        /*
-         * Determine history event type.
-         */
+
         String changeType =
                 cancelling
                         ? "CANCEL"
                         : "UPDATE";
 
+
         /*
          * =====================================================
-         * MEMENTO CARETAKER / HISTORY
+         * MEMENTO CARETAKER
          * =====================================================
          *
-         * Store the OLD state after the new state has been
-         * successfully persisted.
+         * Store the OLD appointment snapshot.
          */
         appointmentHistoryRepository.save(
                 previousState,
@@ -548,16 +721,13 @@ public class AppointmentService {
         return true;
     }
 
-    /*
-     * =========================================================
-     * CHAIN OF RESPONSIBILITY CONFIGURATION
-     * =========================================================
-     */
+
+    // =========================================================
+    // CHAIN OF RESPONSIBILITY CONFIGURATION
+    // =========================================================
 
     /**
-     * Builds the validation pipeline.
-     *
-     * Each handler has exactly one primary responsibility.
+     * Builds the scheduling validation pipeline.
      */
     private AppointmentValidationHandler
             buildSchedulingValidationChain() {
@@ -580,14 +750,14 @@ public class AppointmentService {
         AppointmentValidationHandler dateTimeHandler =
                 new DateTimeValidationHandler();
 
-        AppointmentValidationHandler availabilityHandler =
+        AppointmentValidationHandler
+                availabilityHandler =
                 new DentistAvailabilityHandler(
                         appointmentRepository
                 );
 
+
         /*
-         * Construct the chain:
-         *
          * Patient
          *   → Dentist
          *   → Treatment
@@ -611,11 +781,10 @@ public class AppointmentService {
         return patientHandler;
     }
 
-    /*
-     * =========================================================
-     * EXECUTE VALIDATION CHAIN
-     * =========================================================
-     */
+
+    // =========================================================
+    // EXECUTE VALIDATION CHAIN
+    // =========================================================
 
     private void runSchedulingValidationChain(
             Appointment appointment,
@@ -633,19 +802,11 @@ public class AppointmentService {
         );
     }
 
-    /*
-     * =========================================================
-     * SERVICE-LEVEL VALIDATION
-     * =========================================================
-     */
 
-    /**
-     * Validates fields that are not responsibilities of the
-     * scheduling Chain.
-     *
-     * Patient, dentist, treatment, date/time and conflict
-     * validation are intentionally NOT duplicated here.
-     */
+    // =========================================================
+    // SERVICE-LEVEL VALIDATION
+    // =========================================================
+
     private void validateCommonAppointmentData(
             Appointment appointment) {
 
@@ -656,10 +817,6 @@ public class AppointmentService {
             );
         }
 
-        /*
-         * createdBy identifies the original user who
-         * registered the appointment.
-         */
         if (appointment.getCreatedBy() <= 0) {
 
             throw new IllegalArgumentException(
@@ -678,20 +835,18 @@ public class AppointmentService {
         }
     }
 
-    /*
-     * =========================================================
-     * NON-SCHEDULING REFERENCE VALIDATION
-     * =========================================================
-     */
+
+    // =========================================================
+    // NON-SCHEDULING REFERENCE VALIDATION
+    // =========================================================
 
     /**
-     * Used when schedule information has not changed.
+     * Used for status/notes updates where scheduling
+     * information itself has not changed.
      *
-     * We verify existence only rather than requiring
-     * dentist/treatment active status.
-     *
-     * Historical appointments may legitimately refer to
-     * entities that were later deactivated.
+     * Active status is deliberately not required here,
+     * because historical appointments may reference a
+     * dentist/treatment that was later deactivated.
      */
     private void validateReferencedEntitiesExist(
             Appointment appointment)
@@ -708,6 +863,7 @@ public class AppointmentService {
             );
         }
 
+
         if (dentistRepository
                 .findById(
                         appointment.getDentistId()
@@ -718,6 +874,7 @@ public class AppointmentService {
                     "Selected dentist does not exist."
             );
         }
+
 
         if (treatmentRepository
                 .findById(
@@ -731,11 +888,10 @@ public class AppointmentService {
         }
     }
 
-    /*
-     * =========================================================
-     * STATUS LIFECYCLE VALIDATION
-     * =========================================================
-     */
+
+    // =========================================================
+    // STATUS LIFECYCLE VALIDATION
+    // =========================================================
 
     private void validateStatusTransition(
             Appointment existingAppointment,
@@ -747,15 +903,16 @@ public class AppointmentService {
         AppointmentStatus proposedStatus =
                 proposedAppointment.getStatus();
 
+
         if (existingStatus == null
                 || proposedStatus == null) {
 
             return;
         }
 
+
         /*
-         * Cancelled appointments remain historical records.
-         * They cannot simply be reopened.
+         * Cancelled records remain final historical records.
          */
         if (existingStatus
                 == AppointmentStatus.CANCELLED
@@ -767,9 +924,9 @@ public class AppointmentService {
             );
         }
 
+
         /*
-         * Completed appointments are also final clinical
-         * records and cannot return to SCHEDULED/CANCELLED.
+         * Completed appointments also remain final.
          */
         if (existingStatus
                 == AppointmentStatus.COMPLETED
@@ -783,11 +940,10 @@ public class AppointmentService {
         }
     }
 
-    /*
-     * =========================================================
-     * CHANGE DETECTION
-     * =========================================================
-     */
+
+    // =========================================================
+    // CHANGE DETECTION
+    // =========================================================
 
     private boolean hasSchedulingDetailsChanged(
             Appointment existingAppointment,
@@ -803,15 +959,22 @@ public class AppointmentService {
                 != proposedAppointment.getTreatmentId()
 
                 || !Objects.equals(
-                        existingAppointment.getAppointmentDate(),
-                        proposedAppointment.getAppointmentDate()
+                        existingAppointment
+                                .getAppointmentDate(),
+
+                        proposedAppointment
+                                .getAppointmentDate()
                 )
 
                 || !Objects.equals(
-                        existingAppointment.getAppointmentTime(),
-                        proposedAppointment.getAppointmentTime()
+                        existingAppointment
+                                .getAppointmentTime(),
+
+                        proposedAppointment
+                                .getAppointmentTime()
                 );
     }
+
 
     private boolean hasAppointmentChanged(
             Appointment existingAppointment,
@@ -831,11 +994,10 @@ public class AppointmentService {
                 );
     }
 
-    /*
-     * =========================================================
-     * APPOINTMENT NUMBER GENERATION
-     * =========================================================
-     */
+
+    // =========================================================
+    // APPOINTMENT NUMBER GENERATION
+    // =========================================================
 
     private String generateAppointmentNumber()
             throws SQLException {
@@ -865,11 +1027,10 @@ public class AppointmentService {
         return appointmentNumber;
     }
 
-    /*
-     * =========================================================
-     * GENERAL HELPERS
-     * =========================================================
-     */
+
+    // =========================================================
+    // GENERAL HELPERS
+    // =========================================================
 
     private boolean isBlank(
             String value) {
