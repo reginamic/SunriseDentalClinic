@@ -8,6 +8,11 @@ import java.io.PrintWriter;
 import java.sql.SQLException;
 import java.util.List;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -142,117 +147,278 @@ public class DentistServlet extends HttpServlet {
     // PUT
     // Update an existing dentist
 
-    @Override
-    protected void doPut(HttpServletRequest request,
-                         HttpServletResponse response)
-            throws ServletException, IOException {
+@Override
+protected void doPut(
+        HttpServletRequest request,
+        HttpServletResponse response)
+        throws ServletException, IOException {
 
-        configureJsonResponse(response);
+    configureJsonResponse(response);
 
-        try {
-            int dentistId = parseDentistId(
-                    request.getParameter("dentistId")
-            );
+    try {
 
-            Dentist dentist =
-                    buildDentistFromRequest(request);
+        Map<String, String> putData =
+                parsePutFormData(request);
 
-            dentist.setDentistId(dentistId);
-
-            String activeValue =
-                    request.getParameter("active");
-
-            if (activeValue != null
-                    && !activeValue.isBlank()) {
-
-                dentist.setActive(
-                        Boolean.parseBoolean(
-                                activeValue.trim()
+        int dentistId =
+                parseDentistId(
+                        getPutValue(
+                                putData,
+                                "dentistId"
                         )
                 );
 
-            } else {
-
-                Dentist existingDentist =
-                        dentistService
-                                .getDentistById(dentistId)
-                                .orElseThrow(
-                                        () -> new IllegalArgumentException(
-                                                "Dentist was not found."
-                                        )
-                                );
-
-                dentist.setActive(
-                        existingDentist.isActive()
-                );
-            }
-
-            boolean updated =
-                    dentistService.updateDentist(dentist);
-
-            if (!updated) {
-
-                sendErrorResponse(
-                        response,
-                        HttpServletResponse.SC_NOT_FOUND,
-                        "Dentist was not found."
+        Dentist dentist =
+                buildDentistFromPutData(
+                        putData
                 );
 
-                return;
-            }
+        dentist.setDentistId(
+                dentistId
+        );
 
-            response.setStatus(
-                    HttpServletResponse.SC_OK
-            );
-
-            try (PrintWriter out = response.getWriter()) {
-
-                out.print("{");
-
-                out.print(
-                        "\"message\":\"Dentist updated successfully\","
+        String activeValue =
+                getPutValue(
+                        putData,
+                        "active"
                 );
 
-                out.print(
-                        "\"dentistId\":"
-                        + dentist.getDentistId()
-                );
+        if (activeValue != null
+                && !activeValue.isBlank()) {
 
-                out.print("}");
-            }
-
-        } catch (NumberFormatException e) {
-
-            sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST,
-                    "Dentist ID must be a valid number."
+            dentist.setActive(
+                    Boolean.parseBoolean(
+                            activeValue
+                    )
             );
 
-        } catch (IllegalArgumentException e) {
+        } else {
 
-            sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST,
-                    e.getMessage()
-            );
+            Dentist existingDentist =
+                    dentistService
+                            .getDentistById(
+                                    dentistId
+                            )
+                            .orElseThrow(
+                                    () ->
+                                            new IllegalArgumentException(
+                                                    "Dentist was not found."
+                                            )
+                            );
 
-        } catch (SQLException e) {
-
-            logError(
-                    "Dentist update failed",
-                    e
-            );
-
-            sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "Unable to update dentist."
+            dentist.setActive(
+                    existingDentist.isActive()
             );
         }
+
+        boolean updated =
+                dentistService.updateDentist(
+                        dentist
+                );
+
+        if (!updated) {
+
+            sendErrorResponse(
+                    response,
+                    HttpServletResponse.SC_NOT_FOUND,
+                    "Dentist was not found."
+            );
+
+            return;
+        }
+
+        response.setStatus(
+                HttpServletResponse.SC_OK
+        );
+
+        try (PrintWriter out =
+                response.getWriter()) {
+
+            out.print("{");
+
+            out.print(
+                    "\"message\":"
+                    + "\"Dentist updated successfully\","
+            );
+
+            out.print(
+                    "\"dentistId\":"
+                    + dentist.getDentistId()
+            );
+
+            out.print("}");
+        }
+
+    } catch (NumberFormatException exception) {
+
+        sendErrorResponse(
+                response,
+                HttpServletResponse.SC_BAD_REQUEST,
+                "Dentist ID must be a valid number."
+        );
+
+    } catch (IllegalArgumentException exception) {
+
+        sendErrorResponse(
+                response,
+                HttpServletResponse.SC_BAD_REQUEST,
+                exception.getMessage()
+        );
+
+    } catch (SQLException exception) {
+
+        logError(
+                "Dentist update failed",
+                exception
+        );
+
+        sendErrorResponse(
+                response,
+                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to update dentist."
+        );
+    }
+}
+    
+
+
+
+private Map<String, String> parsePutFormData(
+        HttpServletRequest request)
+        throws IOException {
+
+    Map<String, String> formData =
+            new HashMap<>();
+
+    byte[] bodyBytes =
+            request.getInputStream()
+                    .readAllBytes();
+
+    if (bodyBytes.length == 0) {
+
+        return formData;
     }
 
-    
+    String requestBody =
+            new String(
+                    bodyBytes,
+                    StandardCharsets.UTF_8
+            );
+
+    if (requestBody.isBlank()) {
+
+        return formData;
+    }
+
+    String[] pairs =
+            requestBody.split("&");
+
+    for (String pair : pairs) {
+
+        if (pair == null
+                || pair.isBlank()) {
+
+            continue;
+        }
+
+        String[] parts =
+                pair.split(
+                        "=",
+                        2
+                );
+
+        String key =
+                URLDecoder.decode(
+                        parts[0],
+                        StandardCharsets.UTF_8
+                );
+
+        String value = "";
+
+        if (parts.length > 1) {
+
+            value =
+                    URLDecoder.decode(
+                            parts[1],
+                            StandardCharsets.UTF_8
+                    );
+        }
+
+        formData.put(
+                key,
+                value
+        );
+    }
+
+    return formData;
+}
+
+
+
+
+private String getPutValue(
+        Map<String, String> putData,
+        String parameterName) {
+
+    if (putData == null
+            || parameterName == null) {
+
+        return null;
+    }
+
+    String value =
+            putData.get(
+                    parameterName
+            );
+
+    if (value == null) {
+
+        return null;
+    }
+
+    return value.trim();
+}
+
+
+
+
+
+private Dentist buildDentistFromPutData(
+        Map<String, String> putData) {
+
+    Dentist dentist =
+            new Dentist();
+
+    dentist.setFullName(
+            getPutValue(
+                    putData,
+                    "fullName"
+            )
+    );
+
+    dentist.setSpecialization(
+            getPutValue(
+                    putData,
+                    "specialization"
+            )
+    );
+
+    dentist.setContactNumber(
+            getPutValue(
+                    putData,
+                    "contactNumber"
+            )
+    );
+
+    dentist.setEmail(
+            getPutValue(
+                    putData,
+                    "email"
+            )
+    );
+
+    return dentist;
+}
     // Build Dentist object from HTTP request
    
     private Dentist buildDentistFromRequest(
