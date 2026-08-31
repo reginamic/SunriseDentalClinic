@@ -1285,10 +1285,26 @@
 
                 </a>
 
-            <% } %>
-<div class="nav-section-title">
-    Support
+                <div class="nav-section-title">
+    Administration
 </div>
+
+<a class="nav-item"
+   href="<%= request.getContextPath() %>/users">
+
+    <span class="nav-icon">
+        &#128101;
+    </span>
+
+    <span>
+        Staff Users
+    </span>
+
+</a>
+
+            <% } %>
+
+
 
 <a class="nav-item"
    href="<%= request.getContextPath() %>/help">
