@@ -12,17 +12,48 @@ import java.util.stream.Collectors;
 
 public class ApiClient {
 
-    private static final String BASE_URL =
+    /*
+     * ============================================================
+     * API CONFIGURATION
+     * ============================================================
+     *
+     * Deployment configuration can be supplied using:
+     *
+     * Environment variable:
+     *   SUNRISE_API_BASE_URL
+     *
+     * or Java system property:
+     *   sunrise.api.base.url
+     *
+     * Local development fallback preserves the existing
+     * Tomcat configuration.
+     * ============================================================
+     */
+
+    private static final String DEFAULT_BASE_URL =
             "http://localhost:8081/sunrise-dental-api";
 
     private final HttpClient httpClient;
+
+    private final String baseUrl;
+
 
     public ApiClient() {
 
         this.httpClient =
                 HttpClient.newBuilder()
                         .build();
+
+        this.baseUrl =
+                normalizeBaseUrl(
+                        resolveConfiguration(
+                                "sunrise.api.base.url",
+                                "SUNRISE_API_BASE_URL",
+                                DEFAULT_BASE_URL
+                        )
+                );
     }
+
 
     /**
      * Sends an HTTP GET request to the API.
@@ -34,10 +65,7 @@ public class ApiClient {
         HttpRequest request =
                 HttpRequest.newBuilder()
                         .uri(
-                                URI.create(
-                                        BASE_URL
-                                        + endpoint
-                                )
+                                buildUri(endpoint)
                         )
                         .GET()
                         .header(
@@ -52,12 +80,11 @@ public class ApiClient {
                         HttpResponse.BodyHandlers.ofString()
                 );
 
-        validateResponse(
-                response
-        );
+        validateResponse(response);
 
         return response.body();
     }
+
 
     /**
      * Sends an HTTP POST request using
@@ -76,10 +103,7 @@ public class ApiClient {
         HttpRequest request =
                 HttpRequest.newBuilder()
                         .uri(
-                                URI.create(
-                                        BASE_URL
-                                        + endpoint
-                                )
+                                buildUri(endpoint)
                         )
                         .header(
                                 "Content-Type",
@@ -103,19 +127,15 @@ public class ApiClient {
                         HttpResponse.BodyHandlers.ofString()
                 );
 
-        validateResponse(
-                response
-        );
+        validateResponse(response);
 
         return response.body();
     }
 
+
     /**
      * Sends an HTTP PUT request using
      * application/x-www-form-urlencoded.
-     *
-     * Used when existing resources such as
-     * patients are updated.
      */
     public String put(
             String endpoint,
@@ -130,10 +150,7 @@ public class ApiClient {
         HttpRequest request =
                 HttpRequest.newBuilder()
                         .uri(
-                                URI.create(
-                                        BASE_URL
-                                        + endpoint
-                                )
+                                buildUri(endpoint)
                         )
                         .header(
                                 "Content-Type",
@@ -157,17 +174,66 @@ public class ApiClient {
                         HttpResponse.BodyHandlers.ofString()
                 );
 
-        validateResponse(
-                response
-        );
+        validateResponse(response);
 
         return response.body();
     }
 
-    /**
-     * Converts form values into standard
-     * URL-encoded request data.
+
+    /*
+     * ============================================================
+     * URI CONSTRUCTION
+     * ============================================================
      */
+
+    private URI buildUri(
+            String endpoint) {
+
+        if (endpoint == null
+                || endpoint.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "API endpoint is required."
+            );
+        }
+
+        String normalizedEndpoint =
+                endpoint.startsWith("/")
+                        ? endpoint
+                        : "/" + endpoint;
+
+        return URI.create(
+                baseUrl
+                + normalizedEndpoint
+        );
+    }
+
+
+    private String normalizeBaseUrl(
+            String value) {
+
+        String normalized =
+                value.trim();
+
+        while (normalized.endsWith("/")) {
+
+            normalized =
+                    normalized.substring(
+                            0,
+                            normalized.length() - 1
+                    );
+        }
+
+        return normalized;
+    }
+
+
+    /*
+     * ============================================================
+     * FORM ENCODING
+     * ============================================================
+     */
+
     private String encodeFormData(
             Map<String, String> formData) {
 
@@ -188,6 +254,7 @@ public class ApiClient {
                 );
     }
 
+
     private String encode(
             String value) {
 
@@ -201,9 +268,13 @@ public class ApiClient {
         );
     }
 
-    /**
-     * Accept only successful 2xx HTTP responses.
+
+    /*
+     * ============================================================
+     * RESPONSE VALIDATION
+     * ============================================================
      */
+
     private void validateResponse(
             HttpResponse<String> response)
             throws IOException {
@@ -221,5 +292,51 @@ public class ApiClient {
                     + response.body()
             );
         }
+    }
+
+
+    /*
+     * ============================================================
+     * CONFIGURATION RESOLUTION
+     * ============================================================
+     *
+     * Priority:
+     *
+     * 1. Java system property
+     * 2. Operating-system environment variable
+     * 3. Local development fallback
+     * ============================================================
+     */
+
+    private String resolveConfiguration(
+            String systemPropertyName,
+            String environmentVariableName,
+            String defaultValue) {
+
+        String systemProperty =
+                System.getProperty(
+                        systemPropertyName
+                );
+
+        if (systemProperty != null
+                && !systemProperty.isBlank()) {
+
+            return systemProperty.trim();
+        }
+
+
+        String environmentValue =
+                System.getenv(
+                        environmentVariableName
+                );
+
+        if (environmentValue != null
+                && !environmentValue.isBlank()) {
+
+            return environmentValue.trim();
+        }
+
+
+        return defaultValue;
     }
 }

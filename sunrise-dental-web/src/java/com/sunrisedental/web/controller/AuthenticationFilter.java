@@ -15,6 +15,7 @@ import java.io.IOException;
 
 @WebFilter(
         urlPatterns = {
+
             "/dashboard",
 
             "/patients",
@@ -30,7 +31,15 @@ import java.io.IOException;
             "/appointments/*",
 
             "/bills",
-            "/bills/*"
+            "/bills/*",
+
+            "/reports",
+            "/reports/*",
+
+            "/users",
+            "/users/*",
+
+            "/help"
         }
 )
 public class AuthenticationFilter implements Filter {
@@ -42,6 +51,7 @@ public class AuthenticationFilter implements Filter {
 
         // No initialization required.
     }
+
 
     @Override
     public void doFilter(
@@ -56,14 +66,19 @@ public class AuthenticationFilter implements Filter {
         HttpServletResponse httpResponse =
                 (HttpServletResponse) response;
 
+
         /*
-         * Prevent authenticated clinic pages
-         * from being stored in browser cache.
+         * ========================================================
+         * PROTECTED PAGE CACHE CONTROL
+         * ========================================================
          *
-         * This helps prevent users from seeing
-         * protected pages through the browser
-         * Back button after logout.
+         * Authenticated clinic pages must not be stored in the
+         * browser cache. This reduces the possibility of protected
+         * information being visible through the browser Back
+         * button after logout.
+         * ========================================================
          */
+
         httpResponse.setHeader(
                 "Cache-Control",
                 "no-cache, no-store, must-revalidate"
@@ -79,24 +94,40 @@ public class AuthenticationFilter implements Filter {
                 0
         );
 
+
         /*
-         * Retrieve the existing session only.
+         * ========================================================
+         * SESSION AUTHENTICATION
+         * ========================================================
          *
-         * Do not create a new session for an
-         * unauthenticated request.
+         * Retrieve only an existing session.
+         * Never create a session for an unauthenticated request.
+         * ========================================================
          */
+
         HttpSession session =
                 httpRequest.getSession(false);
 
+
         boolean authenticated =
                 session != null
-                && session.getAttribute("userId") != null
-                && session.getAttribute("username") != null
-                && session.getAttribute("role") != null;
+                && session.getAttribute(
+                        "userId"
+                ) != null
+                && session.getAttribute(
+                        "username"
+                ) != null
+                && session.getAttribute(
+                        "role"
+                ) != null;
+
 
         /*
-         * Block unauthenticated access.
+         * ========================================================
+         * UNAUTHENTICATED ACCESS
+         * ========================================================
          */
+
         if (!authenticated) {
 
             httpResponse.sendRedirect(
@@ -107,16 +138,26 @@ public class AuthenticationFilter implements Filter {
             return;
         }
 
+
         /*
-         * The user has a valid authenticated
-         * session, so continue to the requested
-         * controller.
+         * ========================================================
+         * AUTHENTICATED REQUEST
+         * ========================================================
+         *
+         * Authentication is satisfied here.
+         *
+         * Individual controllers still enforce authorization
+         * rules such as ADMIN-only access to Reports and
+         * Staff User Management.
+         * ========================================================
          */
+
         chain.doFilter(
                 request,
                 response
         );
     }
+
 
     @Override
     public void destroy() {

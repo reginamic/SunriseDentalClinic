@@ -134,8 +134,7 @@ CREATE TABLE appointments (
         FOREIGN KEY (created_by)
         REFERENCES users(user_id),
 
-    CONSTRAINT uq_dentist_date_time
-        UNIQUE (dentist_id, appointment_date, appointment_time)
+
 );
 
 
@@ -249,7 +248,7 @@ CREATE TABLE appointment_history (
     status ENUM('SCHEDULED', 'COMPLETED', 'CANCELLED')
         NOT NULL,
 
-    notes VARCHAR(500),
+    notes VARCHAR(1000),
 
     changed_by INT NOT NULL,
     change_type ENUM('UPDATE', 'CANCEL')
