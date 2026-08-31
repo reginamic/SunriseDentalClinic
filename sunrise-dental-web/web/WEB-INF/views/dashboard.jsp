@@ -1286,8 +1286,27 @@
                 </a>
 
             <% } %>
+<div class="nav-section-title">
+    Support
+</div>
+
+<a class="nav-item"
+   href="<%= request.getContextPath() %>/help">
+
+    <span class="nav-icon">
+        &#10067;
+    </span>
+
+    <span>
+        Help &amp; User Guide
+    </span>
+
+</a>
 
         </nav>
+
+
+
 
         <div class="sidebar-footer">
 
