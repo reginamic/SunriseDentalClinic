@@ -1,17 +1,128 @@
-<%@page contentType="text/html" pageEncoding="UTF-8"%>
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@ page import="com.sunrisedental.web.model.DashboardSummaryViewModel" %>
+<%@ page import="java.math.BigDecimal" %>
+<%@ page import="java.text.DecimalFormat" %>
+
+<%!
+    private String escapeHtml(String value) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    private String money(BigDecimal value) {
+
+        if (value == null) {
+            value = BigDecimal.ZERO;
+        }
+
+        return new DecimalFormat(
+                "#,##0.00"
+        ).format(value);
+    }
+%>
+
+<%
+    DashboardSummaryViewModel summary =
+            (DashboardSummaryViewModel)
+                    request.getAttribute(
+                            "dashboardSummary"
+                    );
+
+    if (summary == null) {
+        summary =
+                new DashboardSummaryViewModel();
+    }
+
+    boolean serviceAvailable =
+            Boolean.TRUE.equals(
+                    request.getAttribute(
+                            "dashboardServiceAvailable"
+                    )
+            );
+
+    String dashboardError =
+            (String)
+                    request.getAttribute(
+                            "dashboardError"
+                    );
+
+    String fullName =
+            String.valueOf(
+                    session.getAttribute(
+                            "fullName"
+                    )
+            );
+
+    String username =
+            String.valueOf(
+                    session.getAttribute(
+                            "username"
+                    )
+            );
+
+    String role =
+            String.valueOf(
+                    session.getAttribute(
+                            "role"
+                    )
+            );
+
+    if ("null".equals(fullName)) {
+        fullName = "Authorized Staff";
+    }
+
+    if ("null".equals(username)) {
+        username = "";
+    }
+
+    if ("null".equals(role)) {
+        role = "";
+    }
+
+    String avatarLetter = "U";
+
+    if (!username.isBlank()) {
+
+        avatarLetter =
+                username.substring(
+                        0,
+                        1
+                ).toUpperCase();
+    }
+
+    boolean isAdmin =
+            "ADMIN".equalsIgnoreCase(
+                    role
+            );
+%>
+
 <!DOCTYPE html>
 
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
 
-    <title>Dashboard | Sunrise Dental Clinic</title>
+    <title>
+        Dashboard | Sunrise Dental Clinic
+    </title>
 
     <style>
+
         * {
             margin: 0;
             padding: 0;
@@ -24,97 +135,156 @@
                 Arial,
                 sans-serif;
 
-            background: #f4f7fb;
-            color: #1e293b;
+            background:
+                #f4f7fb;
 
-            min-height: 100vh;
+            color:
+                #1e293b;
+
+            min-height:
+                100vh;
         }
 
         .layout {
-            min-height: 100vh;
+            min-height:
+                100vh;
 
-            display: grid;
+            display:
+                grid;
+
             grid-template-columns:
                 250px 1fr;
         }
 
-        /* -------------------------
+        /* =====================================================
            SIDEBAR
-           ------------------------- */
+           ===================================================== */
 
         .sidebar {
-            background: #102a43;
-            color: #ffffff;
+            background:
+                #102a43;
 
-            padding: 28px 18px;
+            color:
+                #ffffff;
 
-            display: flex;
-            flex-direction: column;
+            padding:
+                28px 18px;
 
-            min-height: 100vh;
+            display:
+                flex;
+
+            flex-direction:
+                column;
+
+            min-height:
+                100vh;
         }
 
         .brand {
-            padding: 0 10px 28px;
+            padding:
+                0 10px 28px;
 
             border-bottom:
                 1px solid
-                rgba(255, 255, 255, 0.10);
+                rgba(
+                    255,
+                    255,
+                    255,
+                    0.10
+                );
         }
 
         .brand-mark {
-            width: 46px;
-            height: 46px;
+            width:
+                46px;
 
-            border-radius: 12px;
+            height:
+                46px;
+
+            border-radius:
+                12px;
 
             background:
-                rgba(255, 255, 255, 0.12);
+                rgba(
+                    255,
+                    255,
+                    255,
+                    0.12
+                );
 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display:
+                flex;
 
-            font-size: 23px;
+            align-items:
+                center;
 
-            margin-bottom: 14px;
+            justify-content:
+                center;
+
+            font-size:
+                23px;
+
+            margin-bottom:
+                14px;
         }
 
         .brand h2 {
-            font-size: 18px;
-            line-height: 1.3;
+            font-size:
+                18px;
+
+            line-height:
+                1.3;
         }
 
         .brand p {
-            margin-top: 5px;
+            margin-top:
+                5px;
 
-            color: #a9c1d8;
+            color:
+                #a9c1d8;
 
-            font-size: 11px;
+            font-size:
+                11px;
         }
 
         .navigation {
-            margin-top: 28px;
+            margin-top:
+                28px;
 
-            display: grid;
-            gap: 7px;
+            display:
+                grid;
+
+            gap:
+                7px;
         }
 
         .navigation a {
-            text-decoration: none;
+            text-decoration:
+                none;
 
-            color: #cbdbea;
+            color:
+                #cbdbea;
 
-            padding: 12px 13px;
+            padding:
+                12px 13px;
 
-            border-radius: 8px;
+            border-radius:
+                8px;
 
-            font-size: 13px;
-            font-weight: 500;
+            font-size:
+                13px;
 
-            display: flex;
-            align-items: center;
-            gap: 11px;
+            font-weight:
+                500;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            gap:
+                11px;
 
             transition:
                 background 0.2s,
@@ -123,129 +293,195 @@
 
         .navigation a:hover {
             background:
-                rgba(255, 255, 255, 0.08);
+                rgba(
+                    255,
+                    255,
+                    255,
+                    0.08
+                );
 
-            color: #ffffff;
+            color:
+                #ffffff;
         }
 
         .navigation a.active {
-            background: #1f5f99;
-            color: #ffffff;
+            background:
+                #1f5f99;
+
+            color:
+                #ffffff;
         }
 
         .nav-icon {
-            width: 20px;
-            text-align: center;
+            width:
+                20px;
+
+            text-align:
+                center;
         }
 
         .sidebar-footer {
-            margin-top: auto;
+            margin-top:
+                auto;
 
             padding:
                 20px 10px 0;
 
             border-top:
                 1px solid
-                rgba(255, 255, 255, 0.10);
+                rgba(
+                    255,
+                    255,
+                    255,
+                    0.10
+                );
         }
 
         .sidebar-footer a {
-            color: #cbdbea;
+            color:
+                #cbdbea;
 
-            text-decoration: none;
+            text-decoration:
+                none;
 
-            font-size: 12px;
+            font-size:
+                12px;
         }
 
         .sidebar-footer a:hover {
-            color: #ffffff;
+            color:
+                #ffffff;
         }
 
-        /* -------------------------
-           MAIN AREA
-           ------------------------- */
+        /* =====================================================
+           MAIN
+           ===================================================== */
 
         .main {
-            min-width: 0;
+            min-width:
+                0;
         }
 
         .topbar {
-            height: 74px;
+            height:
+                74px;
 
-            background: #ffffff;
+            background:
+                #ffffff;
 
             border-bottom:
-                1px solid #e2e8f0;
+                1px solid
+                #e2e8f0;
 
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display:
+                flex;
 
-            padding: 0 32px;
+            align-items:
+                center;
+
+            justify-content:
+                space-between;
+
+            padding:
+                0 32px;
         }
 
         .page-title h1 {
-            color: #102a43;
+            color:
+                #102a43;
 
-            font-size: 21px;
-            font-weight: 700;
+            font-size:
+                21px;
+
+            font-weight:
+                700;
         }
 
         .page-title p {
-            margin-top: 3px;
+            margin-top:
+                3px;
 
-            color: #64748b;
+            color:
+                #64748b;
 
-            font-size: 12px;
+            font-size:
+                12px;
         }
 
         .user-box {
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            gap:
+                12px;
         }
 
         .avatar {
-            width: 40px;
-            height: 40px;
+            width:
+                40px;
 
-            border-radius: 50%;
+            height:
+                40px;
 
-            background: #e6eef8;
-            color: #153e75;
+            border-radius:
+                50%;
 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background:
+                #e6eef8;
 
-            font-weight: 700;
-            font-size: 14px;
+            color:
+                #153e75;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            font-weight:
+                700;
+
+            font-size:
+                14px;
         }
 
         .user-details {
-            text-align: right;
+            text-align:
+                right;
         }
 
         .user-details strong {
-            display: block;
+            display:
+                block;
 
-            color: #1e293b;
+            color:
+                #1e293b;
 
-            font-size: 13px;
+            font-size:
+                13px;
         }
 
         .user-details span {
-            color: #64748b;
+            color:
+                #64748b;
 
-            font-size: 11px;
+            font-size:
+                11px;
         }
 
-        /* -------------------------
+        /* =====================================================
            CONTENT
-           ------------------------- */
+           ===================================================== */
 
         .content {
-            padding: 32px;
+            padding:
+                32px;
         }
 
         .welcome-panel {
@@ -256,83 +492,343 @@
                     #1f5f99
                 );
 
-            color: #ffffff;
+            color:
+                #ffffff;
 
-            border-radius: 14px;
+            border-radius:
+                14px;
 
-            padding: 30px;
+            padding:
+                30px;
 
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            display:
+                flex;
 
-            margin-bottom: 28px;
+            justify-content:
+                space-between;
+
+            align-items:
+                center;
+
+            margin-bottom:
+                24px;
 
             box-shadow:
                 0 12px 28px
-                rgba(21, 62, 117, 0.14);
+                rgba(
+                    21,
+                    62,
+                    117,
+                    0.14
+                );
         }
 
         .welcome-panel h2 {
-            font-size: 23px;
-            margin-bottom: 7px;
+            font-size:
+                23px;
+
+            margin-bottom:
+                7px;
         }
 
         .welcome-panel p {
-            color: #d8e8f7;
+            color:
+                #d8e8f7;
 
-            font-size: 13px;
-            line-height: 1.6;
+            font-size:
+                13px;
+
+            line-height:
+                1.6;
         }
 
         .welcome-icon {
-            font-size: 54px;
+            font-size:
+                54px;
 
-            opacity: 0.22;
+            opacity:
+                0.22;
         }
 
+        /* =====================================================
+           ALERT
+           ===================================================== */
+
+        .service-alert {
+            background:
+                #fff7ed;
+
+            border:
+                1px solid
+                #fed7aa;
+
+            color:
+                #9a3412;
+
+            border-radius:
+                10px;
+
+            padding:
+                13px 16px;
+
+            margin-bottom:
+                24px;
+
+            font-size:
+                12px;
+
+            line-height:
+                1.5;
+        }
+
+        /* =====================================================
+           SECTION HEADING
+           ===================================================== */
+
         .section-heading {
-            margin-bottom: 17px;
+            display:
+                flex;
+
+            justify-content:
+                space-between;
+
+            align-items:
+                end;
+
+            gap:
+                20px;
+
+            margin-bottom:
+                15px;
         }
 
         .section-heading h2 {
-            color: #102a43;
+            color:
+                #102a43;
 
-            font-size: 17px;
+            font-size:
+                17px;
         }
 
         .section-heading p {
-            color: #64748b;
+            color:
+                #64748b;
 
-            font-size: 12px;
+            font-size:
+                12px;
 
-            margin-top: 4px;
+            margin-top:
+                4px;
         }
 
-        .module-grid {
-            display: grid;
+        .facade-label {
+            color:
+                #64748b;
+
+            font-size:
+                11px;
+
+            background:
+                #ffffff;
+
+            border:
+                1px solid
+                #e2e8f0;
+
+            border-radius:
+                20px;
+
+            padding:
+                7px 11px;
+        }
+
+        /* =====================================================
+           LIVE STATISTICS
+           ===================================================== */
+
+        .stats-grid {
+            display:
+                grid;
 
             grid-template-columns:
-                repeat(4, minmax(0, 1fr));
+                repeat(
+                    4,
+                    minmax(
+                        0,
+                        1fr
+                    )
+                );
 
-            gap: 18px;
+            gap:
+                16px;
 
-            margin-bottom: 30px;
+            margin-bottom:
+                30px;
+        }
+
+        .stat-card {
+            background:
+                #ffffff;
+
+            border:
+                1px solid
+                #e2e8f0;
+
+            border-radius:
+                12px;
+
+            padding:
+                19px;
+
+            box-shadow:
+                0 2px 7px
+                rgba(
+                    15,
+                    23,
+                    42,
+                    0.03
+                );
+        }
+
+        .stat-top {
+            display:
+                flex;
+
+            justify-content:
+                space-between;
+
+            align-items:
+                flex-start;
+
+            gap:
+                12px;
+
+            margin-bottom:
+                12px;
+        }
+
+        .stat-label {
+            color:
+                #64748b;
+
+            font-size:
+                11px;
+
+            font-weight:
+                600;
+
+            line-height:
+                1.4;
+        }
+
+        .stat-icon {
+            width:
+                35px;
+
+            height:
+                35px;
+
+            border-radius:
+                9px;
+
+            background:
+                #edf4fb;
+
+            color:
+                #1f5f99;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            font-size:
+                16px;
+
+            flex-shrink:
+                0;
+        }
+
+        .stat-value {
+            color:
+                #102a43;
+
+            font-size:
+                26px;
+
+            font-weight:
+                700;
+
+            line-height:
+                1.15;
+        }
+
+        .stat-value.money {
+            font-size:
+                20px;
+        }
+
+        .stat-subtext {
+            color:
+                #94a3b8;
+
+            font-size:
+                10px;
+
+            margin-top:
+                7px;
+
+            line-height:
+                1.45;
+        }
+
+        /* =====================================================
+           MODULES
+           ===================================================== */
+
+        .module-grid {
+            display:
+                grid;
+
+            grid-template-columns:
+                repeat(
+                    4,
+                    minmax(
+                        0,
+                        1fr
+                    )
+                );
+
+            gap:
+                18px;
+
+            margin-bottom:
+                30px;
         }
 
         .module-card {
-            background: #ffffff;
+            background:
+                #ffffff;
 
             border:
-                1px solid #e2e8f0;
+                1px solid
+                #e2e8f0;
 
-            border-radius: 12px;
+            border-radius:
+                12px;
 
-            padding: 22px;
+            padding:
+                22px;
 
-            text-decoration: none;
+            text-decoration:
+                none;
 
-            color: inherit;
+            color:
+                inherit;
 
             transition:
                 transform 0.2s,
@@ -346,215 +842,355 @@
 
             box-shadow:
                 0 10px 24px
-                rgba(15, 23, 42, 0.08);
+                rgba(
+                    15,
+                    23,
+                    42,
+                    0.08
+                );
 
-            border-color: #b8cce0;
+            border-color:
+                #b8cce0;
         }
 
         .module-icon {
-            width: 43px;
-            height: 43px;
+            width:
+                43px;
 
-            border-radius: 10px;
+            height:
+                43px;
 
-            background: #edf4fb;
+            border-radius:
+                10px;
 
-            color: #1f5f99;
+            background:
+                #edf4fb;
 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            color:
+                #1f5f99;
 
-            font-size: 20px;
+            display:
+                flex;
 
-            margin-bottom: 17px;
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            font-size:
+                20px;
+
+            margin-bottom:
+                17px;
         }
 
         .module-card h3 {
-            color: #102a43;
+            color:
+                #102a43;
 
-            font-size: 14px;
+            font-size:
+                14px;
 
-            margin-bottom: 7px;
+            margin-bottom:
+                7px;
         }
 
         .module-card p {
-            color: #64748b;
+            color:
+                #64748b;
 
-            font-size: 11px;
-            line-height: 1.55;
+            font-size:
+                11px;
+
+            line-height:
+                1.55;
         }
 
+        /* =====================================================
+           BOTTOM PANELS
+           ===================================================== */
+
         .bottom-grid {
-            display: grid;
+            display:
+                grid;
 
             grid-template-columns:
                 1.5fr 1fr;
 
-            gap: 18px;
+            gap:
+                18px;
         }
 
         .panel {
-            background: #ffffff;
+            background:
+                #ffffff;
 
             border:
-                1px solid #e2e8f0;
+                1px solid
+                #e2e8f0;
 
-            border-radius: 12px;
+            border-radius:
+                12px;
 
-            padding: 22px;
+            padding:
+                22px;
         }
 
         .panel h3 {
-            color: #102a43;
+            color:
+                #102a43;
 
-            font-size: 15px;
+            font-size:
+                15px;
 
-            margin-bottom: 16px;
+            margin-bottom:
+                16px;
         }
 
         .workflow {
-            display: grid;
-            gap: 13px;
+            display:
+                grid;
+
+            gap:
+                13px;
         }
 
         .workflow-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 11px;
+            display:
+                flex;
 
-            padding-bottom: 13px;
+            align-items:
+                flex-start;
+
+            gap:
+                11px;
+
+            padding-bottom:
+                13px;
 
             border-bottom:
-                1px solid #edf2f7;
+                1px solid
+                #edf2f7;
         }
 
         .workflow-item:last-child {
-            border-bottom: none;
-            padding-bottom: 0;
+            border-bottom:
+                none;
+
+            padding-bottom:
+                0;
         }
 
         .workflow-number {
-            width: 27px;
-            height: 27px;
+            width:
+                27px;
 
-            border-radius: 50%;
+            height:
+                27px;
 
-            background: #edf4fb;
-            color: #1f5f99;
+            border-radius:
+                50%;
 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background:
+                #edf4fb;
 
-            font-size: 11px;
-            font-weight: 700;
+            color:
+                #1f5f99;
 
-            flex-shrink: 0;
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            font-size:
+                11px;
+
+            font-weight:
+                700;
+
+            flex-shrink:
+                0;
         }
 
         .workflow-text strong {
-            display: block;
+            display:
+                block;
 
-            color: #334155;
+            color:
+                #334155;
 
-            font-size: 12px;
+            font-size:
+                12px;
 
-            margin-bottom: 3px;
+            margin-bottom:
+                3px;
         }
 
         .workflow-text span {
-            color: #64748b;
+            color:
+                #64748b;
 
-            font-size: 11px;
+            font-size:
+                11px;
         }
 
         .system-info {
-            display: grid;
-            gap: 14px;
+            display:
+                grid;
+
+            gap:
+                14px;
         }
 
         .info-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 15px;
+            display:
+                flex;
 
-            font-size: 12px;
+            justify-content:
+                space-between;
+
+            gap:
+                15px;
+
+            font-size:
+                12px;
         }
 
         .info-row span {
-            color: #64748b;
+            color:
+                #64748b;
         }
 
         .info-row strong {
-            color: #334155;
+            color:
+                #334155;
+
+            text-align:
+                right;
         }
 
         .online {
-            color: #15803d !important;
+            color:
+                #15803d !important;
         }
 
-        /* -------------------------
-           RESPONSIVE
-           ------------------------- */
+        .offline {
+            color:
+                #b91c1c !important;
+        }
 
-        @media (max-width: 1100px) {
+        /* =====================================================
+           RESPONSIVE
+           ===================================================== */
+
+        @media (
+            max-width: 1180px
+        ) {
+
+            .stats-grid {
+                grid-template-columns:
+                    repeat(
+                        2,
+                        minmax(
+                            0,
+                            1fr
+                        )
+                    );
+            }
 
             .module-grid {
                 grid-template-columns:
-                    repeat(2, minmax(0, 1fr));
+                    repeat(
+                        2,
+                        minmax(
+                            0,
+                            1fr
+                        )
+                    );
             }
         }
 
-        @media (max-width: 850px) {
+        @media (
+            max-width: 850px
+        ) {
 
             .layout {
-                grid-template-columns: 1fr;
+                grid-template-columns:
+                    1fr;
             }
 
             .sidebar {
-                display: none;
+                display:
+                    none;
             }
 
             .bottom-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns:
+                    1fr;
             }
         }
 
-        @media (max-width: 600px) {
+        @media (
+            max-width: 600px
+        ) {
 
             .topbar {
-                padding: 0 18px;
+                padding:
+                    0 18px;
             }
 
             .content {
-                padding: 20px;
+                padding:
+                    20px;
             }
 
+            .stats-grid,
             .module-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns:
+                    1fr;
             }
 
             .welcome-panel {
-                padding: 24px;
+                padding:
+                    24px;
             }
 
             .welcome-icon {
-                display: none;
+                display:
+                    none;
             }
 
             .user-details {
-                display: none;
+                display:
+                    none;
+            }
+
+            .section-heading {
+                align-items:
+                    flex-start;
+
+                flex-direction:
+                    column;
             }
         }
+
     </style>
+
 </head>
 
 <body>
 
 <div class="layout">
 
-    <!-- SIDEBAR -->
+    <!-- =====================================================
+         SIDEBAR
+         ===================================================== -->
+
     <aside class="sidebar">
 
         <div class="brand">
@@ -577,70 +1213,85 @@
 
             <a
                 class="active"
-                href="${pageContext.request.contextPath}/dashboard">
+                href="<%= request.getContextPath() %>/dashboard">
 
                 <span class="nav-icon">
                     &#9632;
                 </span>
 
                 Dashboard
+
             </a>
 
-            <a href="${pageContext.request.contextPath}/patients">
+            <a href="<%= request.getContextPath() %>/patients">
 
                 <span class="nav-icon">
                     &#128100;
                 </span>
 
                 Patients
+
             </a>
 
-            <a href="${pageContext.request.contextPath}/dentists">
+            <a href="<%= request.getContextPath() %>/dentists">
 
                 <span class="nav-icon">
                     &#9877;
                 </span>
 
                 Dentists
+
             </a>
 
-            <a href="${pageContext.request.contextPath}/treatments">
+            <a href="<%= request.getContextPath() %>/treatments">
 
                 <span class="nav-icon">
                     &#10010;
                 </span>
 
                 Treatments
+
             </a>
 
-            <a href="${pageContext.request.contextPath}/appointments">
+            <a href="<%= request.getContextPath() %>/appointments">
 
                 <span class="nav-icon">
                     &#128197;
                 </span>
 
                 Appointments
+
             </a>
 
-            <a href="${pageContext.request.contextPath}/bills">
+            <a href="<%= request.getContextPath() %>/bills">
 
                 <span class="nav-icon">
                     &#128179;
                 </span>
 
                 Billing
+
             </a>
-<a href="<%= request.getContextPath() %>/reports">
-    <span class="nav-icon">
-        &#128202;
-    </span>
-    Reports
-</a>
+
+            <% if (isAdmin) { %>
+
+                <a href="<%= request.getContextPath() %>/reports">
+
+                    <span class="nav-icon">
+                        &#128202;
+                    </span>
+
+                    Reports
+
+                </a>
+
+            <% } %>
+
         </nav>
 
         <div class="sidebar-footer">
 
-            <a href="${pageContext.request.contextPath}/logout">
+            <a href="<%= request.getContextPath() %>/logout">
                 Sign out
             </a>
 
@@ -648,7 +1299,10 @@
 
     </aside>
 
-    <!-- MAIN -->
+    <!-- =====================================================
+         MAIN
+         ===================================================== -->
+
     <main class="main">
 
         <header class="topbar">
@@ -670,17 +1324,17 @@
                 <div class="user-details">
 
                     <strong>
-                        ${sessionScope.fullName}
+                        <%= escapeHtml(fullName) %>
                     </strong>
 
                     <span>
-                        ${sessionScope.role}
+                        <%= escapeHtml(role) %>
                     </span>
 
                 </div>
 
                 <div class="avatar">
-                    ${sessionScope.username.substring(0,1).toUpperCase()}
+                    <%= escapeHtml(avatarLetter) %>
                 </div>
 
             </div>
@@ -689,18 +1343,23 @@
 
         <section class="content">
 
+            <!-- =================================================
+                 WELCOME
+                 ================================================= -->
+
             <div class="welcome-panel">
 
                 <div>
 
                     <h2>
-                        Welcome, ${sessionScope.fullName}
+                        Welcome,
+                        <%= escapeHtml(fullName) %>
                     </h2>
 
                     <p>
-                        Manage appointments, patient records,
-                        treatments and billing from one secure
-                        workspace.
+                        Manage patient records,
+                        appointments, treatments and billing
+                        from one secure distributed workspace.
                     </p>
 
                 </div>
@@ -711,15 +1370,306 @@
 
             </div>
 
+            <% if (!serviceAvailable) { %>
+
+                <div class="service-alert">
+
+                    <strong>
+                        Live dashboard information is unavailable.
+                    </strong>
+
+                    <%= escapeHtml(
+                            dashboardError
+                    ) %>
+
+                </div>
+
+            <% } %>
+
+            <!-- =================================================
+                 LIVE CLINIC SUMMARY
+                 ================================================= -->
+
             <div class="section-heading">
 
-                <h2>
-                    Clinic Management
-                </h2>
+                <div>
 
-                <p>
-                    Select a module to continue.
-                </p>
+                    <h2>
+                        Live Clinic Overview
+                    </h2>
+
+                    <p>
+                        Aggregated operational information
+                        across the clinic subsystems.
+                    </p>
+
+                </div>
+
+                <div class="facade-label">
+                    Dashboard Facade
+                </div>
+
+            </div>
+
+            <div class="stats-grid">
+
+                <!-- PATIENTS -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Registered Patients
+                        </div>
+
+                        <div class="stat-icon">
+                            &#128100;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value">
+                        <%= summary.getTotalPatients() %>
+                    </div>
+
+                    <div class="stat-subtext">
+                        Patient records currently available
+                    </div>
+
+                </div>
+
+                <!-- DENTISTS -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Active Dentists
+                        </div>
+
+                        <div class="stat-icon">
+                            &#9877;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value">
+                        <%= summary.getActiveDentists() %>
+                    </div>
+
+                    <div class="stat-subtext">
+
+                        <%= summary.getActiveDentists() %>
+                        active of
+                        <%= summary.getTotalDentists() %>
+                        registered dentists
+
+                    </div>
+
+                </div>
+
+                <!-- TREATMENTS -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Active Treatments
+                        </div>
+
+                        <div class="stat-icon">
+                            &#10010;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value">
+                        <%= summary.getActiveTreatments() %>
+                    </div>
+
+                    <div class="stat-subtext">
+
+                        <%= summary.getActiveTreatments() %>
+                        active of
+                        <%= summary.getTotalTreatments() %>
+                        treatment types
+
+                    </div>
+
+                </div>
+
+                <!-- TOTAL APPOINTMENTS -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Total Appointments
+                        </div>
+
+                        <div class="stat-icon">
+                            &#128197;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value">
+                        <%= summary.getTotalAppointments() %>
+                    </div>
+
+                    <div class="stat-subtext">
+                        All appointment records
+                    </div>
+
+                </div>
+
+                <!-- SCHEDULED -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Scheduled Appointments
+                        </div>
+
+                        <div class="stat-icon">
+                            &#9200;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value">
+                        <%= summary.getScheduledAppointments() %>
+                    </div>
+
+                    <div class="stat-subtext">
+                        Appointments awaiting completion
+                    </div>
+
+                </div>
+
+                <!-- COMPLETED -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Completed Appointments
+                        </div>
+
+                        <div class="stat-icon">
+                            &#10003;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value">
+                        <%= summary.getCompletedAppointments() %>
+                    </div>
+
+                    <div class="stat-subtext">
+
+                        Cancelled:
+                        <%= summary.getCancelledAppointments() %>
+
+                    </div>
+
+                </div>
+
+                <!-- TOTAL BILLED -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Total Billed
+                        </div>
+
+                        <div class="stat-icon">
+                            &#128179;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value money">
+
+                        Rs.
+                        <%= money(
+                                summary.getTotalBilled()
+                        ) %>
+
+                    </div>
+
+                    <div class="stat-subtext">
+
+                        <%= summary.getPaidBills() %>
+                        paid bill(s) of
+                        <%= summary.getTotalBills() %>
+
+                    </div>
+
+                </div>
+
+                <!-- OUTSTANDING -->
+
+                <div class="stat-card">
+
+                    <div class="stat-top">
+
+                        <div class="stat-label">
+                            Outstanding Amount
+                        </div>
+
+                        <div class="stat-icon">
+                            &#9888;
+                        </div>
+
+                    </div>
+
+                    <div class="stat-value money">
+
+                        Rs.
+                        <%= money(
+                                summary.getOutstandingAmount()
+                        ) %>
+
+                    </div>
+
+                    <div class="stat-subtext">
+
+                        Unpaid bills:
+                        <%= summary.getUnpaidBills() %>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- =================================================
+                 MODULES
+                 ================================================= -->
+
+            <div class="section-heading">
+
+                <div>
+
+                    <h2>
+                        Clinic Management
+                    </h2>
+
+                    <p>
+                        Select a module to continue.
+                    </p>
+
+                </div>
 
             </div>
 
@@ -727,7 +1677,7 @@
 
                 <a
                     class="module-card"
-                    href="${pageContext.request.contextPath}/patients">
+                    href="<%= request.getContextPath() %>/patients">
 
                     <div class="module-icon">
                         &#128100;
@@ -738,7 +1688,7 @@
                     </h3>
 
                     <p>
-                        Register, search and update
+                        Register, search and maintain
                         patient information.
                     </p>
 
@@ -746,7 +1696,7 @@
 
                 <a
                     class="module-card"
-                    href="${pageContext.request.contextPath}/appointments">
+                    href="<%= request.getContextPath() %>/appointments">
 
                     <div class="module-icon">
                         &#128197;
@@ -757,15 +1707,15 @@
                     </h3>
 
                     <p>
-                        Schedule appointments and prevent
-                        dentist booking conflicts.
+                        Register, reschedule, complete
+                        and review appointment history.
                     </p>
 
                 </a>
 
                 <a
                     class="module-card"
-                    href="${pageContext.request.contextPath}/treatments">
+                    href="<%= request.getContextPath() %>/treatments">
 
                     <div class="module-icon">
                         &#10010;
@@ -776,7 +1726,7 @@
                     </h3>
 
                     <p>
-                        Manage treatment details,
+                        Review treatment information,
                         prices and consultation fees.
                     </p>
 
@@ -784,7 +1734,7 @@
 
                 <a
                     class="module-card"
-                    href="${pageContext.request.contextPath}/bills">
+                    href="<%= request.getContextPath() %>/bills">
 
                     <div class="module-icon">
                         &#128179;
@@ -795,13 +1745,40 @@
                     </h3>
 
                     <p>
-                        Generate bills, review charges
-                        and manage payments.
+                        Generate patient bills,
+                        record payments and print receipts.
                     </p>
 
                 </a>
 
+                <% if (isAdmin) { %>
+
+                    <a
+                        class="module-card"
+                        href="<%= request.getContextPath() %>/reports">
+
+                        <div class="module-icon">
+                            &#128202;
+                        </div>
+
+                        <h3>
+                            Reports & Analytics
+                        </h3>
+
+                        <p>
+                            Review clinic performance,
+                            revenue, workload and treatment demand.
+                        </p>
+
+                    </a>
+
+                <% } %>
+
             </div>
+
+            <!-- =================================================
+                 WORKFLOW + SYSTEM INFORMATION
+                 ================================================= -->
 
             <div class="bottom-grid">
 
@@ -826,8 +1803,8 @@
                                 </strong>
 
                                 <span>
-                                    Capture and maintain patient
-                                    information securely.
+                                    Capture and maintain
+                                    patient information securely.
                                 </span>
 
                             </div>
@@ -847,8 +1824,8 @@
                                 </strong>
 
                                 <span>
-                                    Select dentist, treatment,
-                                    date and available time.
+                                    Select patient, dentist,
+                                    treatment, date and available time.
                                 </span>
 
                             </div>
@@ -868,8 +1845,8 @@
                                 </strong>
 
                                 <span>
-                                    Maintain accurate treatment
-                                    and appointment information.
+                                    Complete the clinical appointment
+                                    before billing is permitted.
                                 </span>
 
                             </div>
@@ -889,8 +1866,8 @@
                                 </strong>
 
                                 <span>
-                                    Calculate treatment and
-                                    consultation charges.
+                                    Calculate treatment,
+                                    consultation and adjustment charges.
                                 </span>
 
                             </div>
@@ -904,7 +1881,7 @@
                 <div class="panel">
 
                     <h3>
-                        Session Information
+                        System Information
                     </h3>
 
                     <div class="system-info">
@@ -916,7 +1893,7 @@
                             </span>
 
                             <strong>
-                                ${sessionScope.username}
+                                <%= escapeHtml(username) %>
                             </strong>
 
                         </div>
@@ -928,7 +1905,7 @@
                             </span>
 
                             <strong>
-                                ${sessionScope.role}
+                                <%= escapeHtml(role) %>
                             </strong>
 
                         </div>
@@ -948,11 +1925,50 @@
                         <div class="info-row">
 
                             <span>
-                                API Connection
+                                API Aggregation
                             </span>
 
-                            <strong class="online">
-                                Connected
+                            <% if (serviceAvailable) { %>
+
+                                <strong class="online">
+                                    Connected
+                                </strong>
+
+                            <% } else { %>
+
+                                <strong class="offline">
+                                    Unavailable
+                                </strong>
+
+                            <% } %>
+
+                        </div>
+
+                        <div class="info-row">
+
+                            <span>
+                                Dashboard Pattern
+                            </span>
+
+                            <strong>
+                                Facade
+                            </strong>
+
+                        </div>
+
+                        <div class="info-row">
+
+                            <span>
+                                Total Paid
+                            </span>
+
+                            <strong>
+
+                                Rs.
+                                <%= money(
+                                        summary.getTotalPaid()
+                                ) %>
+
                             </strong>
 
                         </div>
