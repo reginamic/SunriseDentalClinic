@@ -630,7 +630,12 @@
 
                 Billing
             </a>
-
+<a href="<%= request.getContextPath() %>/reports">
+    <span class="nav-icon">
+        &#128202;
+    </span>
+    Reports
+</a>
         </nav>
 
         <div class="sidebar-footer">
