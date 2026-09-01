@@ -81,6 +81,11 @@ jobs:
             -Uri "https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/26.7.0/mysql-connector-j-26.7.0.jar" `
             -OutFile "lib\mysql-connector-j-26.7.0.jar"
 
+      - name: Prepare NetBeans web directories
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "sunrise-dental-api\web\WEB-INF" | Out-Null
+          New-Item -ItemType Directory -Force "sunrise-dental-web\web\WEB-INF" | Out-Null
       - name: Verify CI toolchain
         shell: pwsh
         run: |
