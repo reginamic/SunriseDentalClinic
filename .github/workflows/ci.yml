@@ -40,7 +40,9 @@ jobs:
             -Uri "https://archive.apache.org/dist/ant/binaries/apache-ant-$antVersion-bin.zip" `
             -OutFile $antZip
 
-          Expand-Archive -Path $antZip -DestinationPath $env:RUNNER_TEMP
+          Expand-Archive `
+            -Path $antZip `
+            -DestinationPath $env:RUNNER_TEMP
 
           "ANT_HOME=$antHome" | Out-File `
             -FilePath $env:GITHUB_ENV -Append
@@ -59,33 +61,11 @@ jobs:
             -Uri "https://archive.apache.org/dist/tomcat/tomcat-10/v$tomcatVersion/bin/apache-tomcat-$tomcatVersion.zip" `
             -OutFile $tomcatZip
 
-          Expand-Archive -Path $tomcatZip -DestinationPath $env:RUNNER_TEMP
-
-          "TOMCAT_HOME=$tomcatHome" | Out-File `
-            -FilePath $env:GITHUB_ENV -Append
-
-      - name: Install NetBeans CopyLibs build task
-        shell: pwsh
-        run: |
-          $netBeansVersion = "25"
-          $netBeansZip = "$env:RUNNER_TEMP\netbeans-$netBeansVersion-bin.zip"
-
-          Invoke-WebRequest `
-            -Uri "https://archive.apache.org/dist/netbeans/netbeans/$netBeansVersion/netbeans-$netBeansVersion-bin.zip" `
-            -OutFile $netBeansZip
-
           Expand-Archive `
-            -Path $netBeansZip `
+            -Path $tomcatZip `
             -DestinationPath $env:RUNNER_TEMP
 
-          $copyLibsJar = `
-            "$env:RUNNER_TEMP\netbeans\java\ant\extra\org-netbeans-modules-java-j2seproject-copylibstask.jar"
-
-          if (-not (Test-Path $copyLibsJar)) {
-              throw "NetBeans CopyLibs task was not found."
-          }
-
-          "COPYLIBS_JAR=$copyLibsJar" | Out-File `
+          "TOMCAT_HOME=$tomcatHome" | Out-File `
             -FilePath $env:GITHUB_ENV -Append
 
       - name: Provision project dependencies
@@ -107,12 +87,6 @@ jobs:
           java -version
           ant -version
           Write-Host "Tomcat Home: $env:TOMCAT_HOME"
-          Write-Host "CopyLibs: $env:COPYLIBS_JAR"
-
-          if (-not (Test-Path $env:COPYLIBS_JAR)) {
-              throw "CopyLibs dependency is unavailable."
-          }
-
           Get-ChildItem "lib"
 
       - name: Clean and build REST API
@@ -121,7 +95,6 @@ jobs:
           ant `
             -f "sunrise-dental-api\build.xml" `
             "-Dj2ee.server.home=$env:TOMCAT_HOME" `
-            "-Dlibs.CopyLibs.classpath=$env:COPYLIBS_JAR" `
             clean dist
 
       - name: Clean and build Web application
@@ -130,22 +103,40 @@ jobs:
           ant `
             -f "sunrise-dental-web\build.xml" `
             "-Dj2ee.server.home=$env:TOMCAT_HOME" `
-            "-Dlibs.CopyLibs.classpath=$env:COPYLIBS_JAR" `
             clean dist
 
       - name: Verify deployment packages
         shell: pwsh
         run: |
-          if (-not (Test-Path "sunrise-dental-api\dist\sunrise-dental-api.war")) {
+          $apiWar = "sunrise-dental-api\dist\sunrise-dental-api.war"
+          $webWar = "sunrise-dental-web\dist\sunrise-dental-web.war"
+
+          if (-not (Test-Path $apiWar)) {
               throw "REST API WAR was not generated."
           }
 
-          if (-not (Test-Path "sunrise-dental-web\dist\sunrise-dental-web.war")) {
+          if (-not (Test-Path $webWar)) {
               throw "Web application WAR was not generated."
           }
 
-          Get-Item "sunrise-dental-api\dist\sunrise-dental-api.war"
-          Get-Item "sunrise-dental-web\dist\sunrise-dental-web.war"
+          Write-Host "Generated deployment packages:"
+          Get-Item $apiWar
+          Get-Item $webWar
+
+          Write-Host "Verifying packaged runtime dependencies..."
+
+          $apiContents = jar tf $apiWar
+          $webContents = jar tf $webWar
+
+          if ($apiContents -notcontains "WEB-INF/lib/mysql-connector-j-26.7.0.jar") {
+              throw "MySQL Connector/J is missing from the API WAR."
+          }
+
+          if ($webContents -notcontains "WEB-INF/lib/gson-2.14.0.jar") {
+              throw "Gson is missing from the Web WAR."
+          }
+
+          Write-Host "WAR dependency verification successful."
 
       - name: Upload deployable WAR packages
         uses: actions/upload-artifact@v6
