@@ -85,7 +85,7 @@ jobs:
           Write-Host "Tomcat Home: $env:TOMCAT_HOME"
           Get-ChildItem "lib"
 
-            - name: Clean and build REST API
+      - name: Clean and build REST API
         shell: pwsh
         run: |
           ant `
@@ -93,7 +93,7 @@ jobs:
             "-Dj2ee.server.home=$env:TOMCAT_HOME" `
             clean dist
 
-           - name: Clean and build Web application
+      - name: Clean and build Web application
         shell: pwsh
         run: |
           ant `
