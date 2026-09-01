@@ -24,3 +24,5 @@ Thumbs.db
 
 # Logs
 *.log
+/sunrise-dental-api/nbproject/private/
+/sunrise-dental-web/nbproject/private/
