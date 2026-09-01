@@ -3,116 +3,194 @@ package com.sunrisedental.api.controller;
 import com.sunrisedental.api.model.Patient;
 import com.sunrisedental.api.service.PatientService;
 
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.sql.SQLException;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.List;
-
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-@WebServlet(name = "PatientServlet", urlPatterns = {"/api/patients"})
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+
+import java.sql.SQLException;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+
+@WebServlet(
+        name = "PatientServlet",
+        urlPatterns = {"/api/patients"}
+)
 public class PatientServlet extends HttpServlet {
 
-    private static final String JSON_CONTENT_TYPE = "application/json";
-    private static final String CHARACTER_ENCODING = "UTF-8";
+    private static final String JSON_CONTENT_TYPE =
+            "application/json";
 
-    private final PatientService patientService = new PatientService();
+    private static final String CHARACTER_ENCODING =
+            "UTF-8";
 
 
+    private final PatientService patientService =
+            new PatientService();
+
+
+    // =========================================================
     // GET
-    // View all patients or search patients
-  
+    // =========================================================
+
     @Override
-    protected void doGet(HttpServletRequest request,
-                         HttpServletResponse response)
+    protected void doGet(
+            HttpServletRequest request,
+            HttpServletResponse response)
             throws ServletException, IOException {
 
-        configureJsonResponse(response);
+        configureJsonResponse(
+                response
+        );
+
 
         try {
-            String searchKeyword = request.getParameter("search");
+
+            String searchKeyword =
+                    request.getParameter(
+                            "search"
+                    );
+
 
             List<Patient> patients;
 
-            if (searchKeyword != null && !searchKeyword.isBlank()) {
-                patients = patientService.searchPatients(
-                        searchKeyword.trim()
-                );
+
+            if (searchKeyword != null
+                    && !searchKeyword.isBlank()) {
+
+                patients =
+                        patientService
+                                .searchPatients(
+                                        searchKeyword.trim()
+                                );
+
             } else {
-                patients = patientService.getAllPatients();
+
+                patients =
+                        patientService
+                                .getAllPatients();
             }
 
-            response.setStatus(HttpServletResponse.SC_OK);
 
-            writePatientList(response, patients);
+            response.setStatus(
+                    HttpServletResponse.SC_OK
+            );
 
-        } catch (SQLException e) {
+
+            writePatientList(
+                    response,
+                    patients
+            );
+
+
+        } catch (SQLException exception) {
 
             logError(
                     "Patient retrieval failed",
-                    e
+                    exception
             );
+
 
             sendErrorResponse(
                     response,
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    HttpServletResponse
+                            .SC_INTERNAL_SERVER_ERROR,
                     "Unable to retrieve patients."
             );
         }
     }
 
-    
+
+    // =========================================================
     // POST
-    // Register a new patient
-  
+    // =========================================================
+
     @Override
-    protected void doPost(HttpServletRequest request,
-                          HttpServletResponse response)
+    protected void doPost(
+            HttpServletRequest request,
+            HttpServletResponse response)
             throws ServletException, IOException {
 
-        configureJsonResponse(response);
+        configureJsonResponse(
+                response
+        );
+
 
         try {
-            Patient patient = buildPatientFromRequest(request);
+
+            Patient patient =
+                    buildPatientFromRequest(
+                            request
+                    );
+
 
             Patient savedPatient =
-                    patientService.registerPatient(patient);
+                    patientService
+                            .registerPatient(
+                                    patient
+                            );
+
 
             response.setStatus(
                     HttpServletResponse.SC_CREATED
             );
 
-            try (PrintWriter out = response.getWriter()) {
+
+            try (
+                    PrintWriter out =
+                            response.getWriter()
+            ) {
 
                 out.print("{");
+
                 out.print(
-                        "\"message\":\"Patient registered successfully\","
+                        "\"message\":"
+                        + "\"Patient registered successfully\","
                 );
+
                 out.print(
                         "\"patientId\":"
                         + savedPatient.getPatientId()
                         + ","
                 );
+
                 out.print(
                         "\"patientCode\":\""
-                        + escapeJson(savedPatient.getPatientCode())
+                        + escapeJson(
+                                savedPatient
+                                        .getPatientCode()
+                        )
                         + "\","
                 );
+
                 out.print(
                         "\"fullName\":\""
-                        + escapeJson(savedPatient.getFullName())
+                        + escapeJson(
+                                savedPatient
+                                        .getFullName()
+                        )
                         + "\""
                 );
+
                 out.print("}");
             }
 
-        } catch (DateTimeParseException e) {
+
+        } catch (DateTimeParseException exception) {
 
             sendErrorResponse(
                     response,
@@ -120,78 +198,132 @@ public class PatientServlet extends HttpServlet {
                     "Date of birth must use YYYY-MM-DD format."
             );
 
-        } catch (IllegalArgumentException e) {
+
+        } catch (IllegalArgumentException exception) {
 
             sendErrorResponse(
                     response,
                     HttpServletResponse.SC_BAD_REQUEST,
-                    e.getMessage()
+                    exception.getMessage()
             );
 
-        } catch (SQLException e) {
+
+        } catch (SQLException exception) {
 
             logError(
                     "Patient registration failed",
-                    e
+                    exception
             );
+
 
             sendErrorResponse(
                     response,
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    HttpServletResponse
+                            .SC_INTERNAL_SERVER_ERROR,
                     "Unable to register patient."
             );
         }
     }
 
-    
+
+    // =========================================================
     // PUT
-    // Update an existing patient
-   
+    // =========================================================
+
     @Override
-    protected void doPut(HttpServletRequest request,
-                         HttpServletResponse response)
+    protected void doPut(
+            HttpServletRequest request,
+            HttpServletResponse response)
             throws ServletException, IOException {
 
-        configureJsonResponse(response);
+        configureJsonResponse(
+                response
+        );
+
 
         try {
-            int patientId = parsePatientId(
-                    request.getParameter("patientId")
-            );
+
+            /*
+             * IMPORTANT:
+             *
+             * Tomcat does not reliably make
+             * application/x-www-form-urlencoded PUT fields
+             * available through request.getParameter().
+             *
+             * Therefore we manually parse the PUT request body.
+             */
+            Map<String, String> parameters =
+                    parseFormEncodedBody(
+                            request
+                    );
+
+
+            int patientId =
+                    parsePatientId(
+                            getTrimmedParameter(
+                                    parameters,
+                                    "patientId"
+                            )
+                    );
+
 
             Patient patient =
-                    buildPatientFromRequest(request);
+                    buildPatientFromParameters(
+                            parameters
+                    );
 
-            patient.setPatientId(patientId);
+
+            patient.setPatientId(
+                    patientId
+            );
+
 
             boolean updated =
-                    patientService.updatePatient(patient);
+                    patientService
+                            .updatePatient(
+                                    patient
+                            );
+
 
             if (!updated) {
+
                 sendErrorResponse(
                         response,
                         HttpServletResponse.SC_NOT_FOUND,
                         "Patient was not found."
                 );
+
                 return;
             }
 
-            response.setStatus(HttpServletResponse.SC_OK);
 
-            try (PrintWriter out = response.getWriter()) {
+            response.setStatus(
+                    HttpServletResponse.SC_OK
+            );
+
+
+            try (
+                    PrintWriter out =
+                            response.getWriter()
+            ) {
 
                 out.print("{");
+
                 out.print(
-                        "\"message\":\"Patient updated successfully\","
+                        "\"message\":"
+                        + "\"Patient updated successfully\","
                 );
+
                 out.print(
                         "\"patientId\":"
                         + patient.getPatientId()
                 );
+
                 out.print("}");
             }
 
-        } catch (NumberFormatException e) {
+
+        } catch (NumberFormatException exception) {
 
             sendErrorResponse(
                     response,
@@ -199,7 +331,8 @@ public class PatientServlet extends HttpServlet {
                     "Patient ID must be a valid number."
             );
 
-        } catch (DateTimeParseException e) {
+
+        } catch (DateTimeParseException exception) {
 
             sendErrorResponse(
                     response,
@@ -207,36 +340,44 @@ public class PatientServlet extends HttpServlet {
                     "Date of birth must use YYYY-MM-DD format."
             );
 
-        } catch (IllegalArgumentException e) {
+
+        } catch (IllegalArgumentException exception) {
 
             sendErrorResponse(
                     response,
                     HttpServletResponse.SC_BAD_REQUEST,
-                    e.getMessage()
+                    exception.getMessage()
             );
 
-        } catch (SQLException e) {
+
+        } catch (SQLException exception) {
 
             logError(
                     "Patient update failed",
-                    e
+                    exception
             );
+
 
             sendErrorResponse(
                     response,
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    HttpServletResponse
+                            .SC_INTERNAL_SERVER_ERROR,
                     "Unable to update patient."
             );
         }
     }
 
-   
-    // Build Patient object from HTTP request
-   
+
+    // =========================================================
+    // BUILD PATIENT FROM POST REQUEST
+    // =========================================================
+
     private Patient buildPatientFromRequest(
             HttpServletRequest request) {
 
-        Patient patient = new Patient();
+        Patient patient =
+                new Patient();
+
 
         patient.setFullName(
                 getTrimmedParameter(
@@ -245,12 +386,14 @@ public class PatientServlet extends HttpServlet {
                 )
         );
 
+
         patient.setAddress(
                 getTrimmedParameter(
                         request,
                         "address"
                 )
         );
+
 
         patient.setContactNumber(
                 getTrimmedParameter(
@@ -259,12 +402,14 @@ public class PatientServlet extends HttpServlet {
                 )
         );
 
+
         patient.setEmail(
                 getTrimmedParameter(
                         request,
                         "email"
                 )
         );
+
 
         patient.setGender(
                 getTrimmedParameter(
@@ -273,27 +418,196 @@ public class PatientServlet extends HttpServlet {
                 )
         );
 
+
         String dateOfBirth =
                 getTrimmedParameter(
                         request,
                         "dateOfBirth"
                 );
 
+
         if (dateOfBirth != null
                 && !dateOfBirth.isBlank()) {
 
             patient.setDateOfBirth(
-                    LocalDate.parse(dateOfBirth)
+                    LocalDate.parse(
+                            dateOfBirth
+                    )
             );
         }
+
 
         return patient;
     }
 
-    
-    // Parse and validate Patient ID
-   
-    private int parsePatientId(String patientIdValue) {
+
+    // =========================================================
+    // BUILD PATIENT FROM PUT PARAMETERS
+    // =========================================================
+
+    private Patient buildPatientFromParameters(
+            Map<String, String> parameters) {
+
+        Patient patient =
+                new Patient();
+
+
+        patient.setFullName(
+                getTrimmedParameter(
+                        parameters,
+                        "fullName"
+                )
+        );
+
+
+        patient.setAddress(
+                getTrimmedParameter(
+                        parameters,
+                        "address"
+                )
+        );
+
+
+        patient.setContactNumber(
+                getTrimmedParameter(
+                        parameters,
+                        "contactNumber"
+                )
+        );
+
+
+        patient.setEmail(
+                getTrimmedParameter(
+                        parameters,
+                        "email"
+                )
+        );
+
+
+        patient.setGender(
+                getTrimmedParameter(
+                        parameters,
+                        "gender"
+                )
+        );
+
+
+        String dateOfBirth =
+                getTrimmedParameter(
+                        parameters,
+                        "dateOfBirth"
+                );
+
+
+        if (dateOfBirth != null
+                && !dateOfBirth.isBlank()) {
+
+            patient.setDateOfBirth(
+                    LocalDate.parse(
+                            dateOfBirth
+                    )
+            );
+        }
+
+
+        return patient;
+    }
+
+
+    // =========================================================
+    // PARSE FORM-URLENCODED PUT BODY
+    // =========================================================
+
+    private Map<String, String> parseFormEncodedBody(
+            HttpServletRequest request)
+            throws IOException {
+
+        Map<String, String> parameters =
+                new HashMap<>();
+
+
+        StringBuilder body =
+                new StringBuilder();
+
+
+        try (
+                BufferedReader reader =
+                        request.getReader()
+        ) {
+
+            String line;
+
+
+            while ((line = reader.readLine())
+                    != null) {
+
+                body.append(
+                        line
+                );
+            }
+        }
+
+
+        if (body.length() == 0) {
+
+            return parameters;
+        }
+
+
+        String[] pairs =
+                body.toString()
+                        .split("&");
+
+
+        for (String pair : pairs) {
+
+            if (pair == null
+                    || pair.isBlank()) {
+
+                continue;
+            }
+
+
+            String[] parts =
+                    pair.split(
+                            "=",
+                            2
+                    );
+
+
+            String key =
+                    URLDecoder.decode(
+                            parts[0],
+                            StandardCharsets.UTF_8
+                    );
+
+
+            String value =
+                    parts.length > 1
+                            ? URLDecoder.decode(
+                                    parts[1],
+                                    StandardCharsets.UTF_8
+                            )
+                            : "";
+
+
+            parameters.put(
+                    key,
+                    value
+            );
+        }
+
+
+        return parameters;
+    }
+
+
+    // =========================================================
+    // PATIENT ID VALIDATION
+    // =========================================================
+
+    private int parsePatientId(
+            String patientIdValue) {
 
         if (patientIdValue == null
                 || patientIdValue.isBlank()) {
@@ -303,10 +617,12 @@ public class PatientServlet extends HttpServlet {
             );
         }
 
+
         int patientId =
                 Integer.parseInt(
                         patientIdValue.trim()
                 );
+
 
         if (patientId <= 0) {
 
@@ -315,62 +631,109 @@ public class PatientServlet extends HttpServlet {
             );
         }
 
+
         return patientId;
     }
 
-    
-    // Read and trim HTTP parameter
-    
+
+    // =========================================================
+    // NORMAL REQUEST PARAMETER
+    // =========================================================
+
     private String getTrimmedParameter(
             HttpServletRequest request,
             String parameterName) {
 
         String value =
-                request.getParameter(parameterName);
+                request.getParameter(
+                        parameterName
+                );
+
 
         if (value == null) {
+
             return null;
         }
+
 
         return value.trim();
     }
 
-    
-    // Write Patient List as JSON
-   
+
+    // =========================================================
+    // PUT MAP PARAMETER
+    // =========================================================
+
+    private String getTrimmedParameter(
+            Map<String, String> parameters,
+            String parameterName) {
+
+        String value =
+                parameters.get(
+                        parameterName
+                );
+
+
+        if (value == null) {
+
+            return null;
+        }
+
+
+        return value.trim();
+    }
+
+
+    // =========================================================
+    // PATIENT LIST JSON
+    // =========================================================
+
     private void writePatientList(
             HttpServletResponse response,
             List<Patient> patients)
             throws IOException {
 
-        try (PrintWriter out = response.getWriter()) {
+        try (
+                PrintWriter out =
+                        response.getWriter()
+        ) {
 
             out.print("[");
 
-            for (int i = 0; i < patients.size(); i++) {
+
+            for (int index = 0;
+                 index < patients.size();
+                 index++) {
 
                 writePatientJson(
                         out,
-                        patients.get(i)
+                        patients.get(index)
                 );
 
-                if (i < patients.size() - 1) {
+
+                if (index
+                        < patients.size() - 1) {
+
                     out.print(",");
                 }
             }
+
 
             out.print("]");
         }
     }
 
-    
-    // Write one Patient as JSON
-  
+
+    // =========================================================
+    // SINGLE PATIENT JSON
+    // =========================================================
+
     private void writePatientJson(
             PrintWriter out,
             Patient patient) {
 
         out.print("{");
+
 
         out.print(
                 "\"patientId\":"
@@ -378,42 +741,60 @@ public class PatientServlet extends HttpServlet {
                 + ","
         );
 
+
         out.print(
                 "\"patientCode\":\""
-                + escapeJson(patient.getPatientCode())
+                + escapeJson(
+                        patient.getPatientCode()
+                )
                 + "\","
         );
+
 
         out.print(
                 "\"fullName\":\""
-                + escapeJson(patient.getFullName())
+                + escapeJson(
+                        patient.getFullName()
+                )
                 + "\","
         );
+
 
         out.print(
                 "\"address\":\""
-                + escapeJson(patient.getAddress())
+                + escapeJson(
+                        patient.getAddress()
+                )
                 + "\","
         );
 
+
         out.print(
                 "\"contactNumber\":\""
-                + escapeJson(patient.getContactNumber())
+                + escapeJson(
+                        patient.getContactNumber()
+                )
                 + "\","
         );
+
 
         if (patient.getEmail() != null) {
 
             out.print(
                     "\"email\":\""
-                    + escapeJson(patient.getEmail())
+                    + escapeJson(
+                            patient.getEmail()
+                    )
                     + "\","
             );
 
         } else {
 
-            out.print("\"email\":null,");
+            out.print(
+                    "\"email\":null,"
+            );
         }
+
 
         if (patient.getDateOfBirth() != null) {
 
@@ -425,28 +806,38 @@ public class PatientServlet extends HttpServlet {
 
         } else {
 
-            out.print("\"dateOfBirth\":null,");
+            out.print(
+                    "\"dateOfBirth\":null,"
+            );
         }
+
 
         if (patient.getGender() != null) {
 
             out.print(
                     "\"gender\":\""
-                    + escapeJson(patient.getGender())
+                    + escapeJson(
+                            patient.getGender()
+                    )
                     + "\""
             );
 
         } else {
 
-            out.print("\"gender\":null");
+            out.print(
+                    "\"gender\":null"
+            );
         }
+
 
         out.print("}");
     }
 
-    
-    // Standard JSON response configuration
-  
+
+    // =========================================================
+    // JSON RESPONSE CONFIG
+    // =========================================================
+
     private void configureJsonResponse(
             HttpServletResponse response) {
 
@@ -454,60 +845,93 @@ public class PatientServlet extends HttpServlet {
                 JSON_CONTENT_TYPE
         );
 
+
         response.setCharacterEncoding(
                 CHARACTER_ENCODING
         );
     }
 
-   
-    // Standard JSON error response
-    
+
+    // =========================================================
+    // ERROR RESPONSE
+    // =========================================================
+
     private void sendErrorResponse(
             HttpServletResponse response,
             int status,
             String message)
             throws IOException {
 
-        response.setStatus(status);
+        response.setStatus(
+                status
+        );
 
-        try (PrintWriter out = response.getWriter()) {
+
+        try (
+                PrintWriter out =
+                        response.getWriter()
+        ) {
 
             out.print(
                     "{\"error\":\""
-                    + escapeJson(message)
+                    + escapeJson(
+                            message
+                    )
                     + "\"}"
             );
         }
     }
 
-    
-    // Simple server-side error logging
-   
+
+    // =========================================================
+    // LOGGING
+    // =========================================================
+
     private void logError(
             String message,
             Exception exception) {
 
-        System.err.println(
-                message
-                + ": "
-                + exception.getMessage()
-        );
+        getServletContext()
+                .log(
+                        message,
+                        exception
+                );
     }
 
-   
-    // Basic JSON escaping
-   
-    private String escapeJson(String value) {
+
+    // =========================================================
+    // JSON ESCAPE
+    // =========================================================
+
+    private String escapeJson(
+            String value) {
 
         if (value == null) {
+
             return "";
         }
 
+
         return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+                .replace(
+                        "\\",
+                        "\\\\"
+                )
+                .replace(
+                        "\"",
+                        "\\\""
+                )
+                .replace(
+                        "\n",
+                        "\\n"
+                )
+                .replace(
+                        "\r",
+                        "\\r"
+                )
+                .replace(
+                        "\t",
+                        "\\t"
+                );
     }
 }

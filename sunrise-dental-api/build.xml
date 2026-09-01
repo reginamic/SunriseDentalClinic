@@ -68,4 +68,23 @@
     nbproject/build-impl.xml file. 
 
     -->
+
+    <!-- CI portability overrides: use standard Ant instead of NetBeans CopyLibs. -->
+    <target name="-init-taskdefs"/>
+
+    <target name="library-inclusion-in-manifest" depends="init" if="dist.ear.dir">
+        <mkdir dir="${dist.ear.dir}/lib"/>
+        <copy file="${file.reference.mysql-connector-j-26.7.0.jar}"
+              todir="${dist.ear.dir}/lib"
+              failonerror="true"/>
+        <mkdir dir="${build.web.dir}/META-INF"/>
+        <manifest file="${build.web.dir}/META-INF/MANIFEST.MF" mode="update"/>
+    </target>
+
+    <target name="library-inclusion-in-archive" depends="init" unless="dist.ear.dir">
+        <mkdir dir="${build.web.dir}/WEB-INF/lib"/>
+        <copy file="${file.reference.mysql-connector-j-26.7.0.jar}"
+              todir="${build.web.dir}/WEB-INF/lib"
+              failonerror="true"/>
+    </target>
 </project>

@@ -8,40 +8,177 @@ public final class DatabaseConnectionManager {
 
     private static DatabaseConnectionManager instance;
 
-    private static final String URL =
+    /*
+     * ============================================================
+     * DATABASE CONFIGURATION
+     * ============================================================
+     *
+     * Production/deployment values can be supplied using:
+     *
+     * Environment variables:
+     *   SUNRISE_DB_URL
+     *   SUNRISE_DB_USERNAME
+     *   SUNRISE_DB_PASSWORD
+     *
+     * or Java system properties:
+     *   sunrise.db.url
+     *   sunrise.db.username
+     *   sunrise.db.password
+     *
+     * Local development defaults preserve compatibility with the
+     * existing WampServer/MySQL environment.
+     * ============================================================
+     */
+
+    private static final String DEFAULT_URL =
             "jdbc:mysql://localhost:3306/sunrise_dental_db"
             + "?useSSL=false&allowPublicKeyRetrieval=true"
             + "&serverTimezone=Asia/Colombo";
 
-    private static final String USERNAME = "root";
-    private static final String PASSWORD = "";
+    private static final String DEFAULT_USERNAME =
+            "root";
 
-    // Private constructor prevents direct object creation.
+    private static final String DEFAULT_PASSWORD =
+            "";
+
+
+    private final String databaseUrl;
+    private final String databaseUsername;
+    private final String databasePassword;
+
+
     private DatabaseConnectionManager() {
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new IllegalStateException(
-                    "MySQL JDBC Driver was not found.", e);
-        }
+
+        loadJdbcDriver();
+
+        databaseUrl =
+                resolveConfiguration(
+                        "sunrise.db.url",
+                        "SUNRISE_DB_URL",
+                        DEFAULT_URL
+                );
+
+        databaseUsername =
+                resolveConfiguration(
+                        "sunrise.db.username",
+                        "SUNRISE_DB_USERNAME",
+                        DEFAULT_USERNAME
+                );
+
+        databasePassword =
+                resolveConfiguration(
+                        "sunrise.db.password",
+                        "SUNRISE_DB_PASSWORD",
+                        DEFAULT_PASSWORD
+                );
     }
 
-    // Singleton access point.
-    public static synchronized DatabaseConnectionManager getInstance() {
+
+    /*
+     * ============================================================
+     * SINGLETON ACCESS
+     * ============================================================
+     */
+
+    public static synchronized
+            DatabaseConnectionManager getInstance() {
 
         if (instance == null) {
-            instance = new DatabaseConnectionManager();
+
+            instance =
+                    new DatabaseConnectionManager();
         }
 
         return instance;
     }
 
-    // Provides a new database connection when required.
-    public Connection getConnection() throws SQLException {
+
+    /*
+     * ============================================================
+     * DATABASE CONNECTION
+     * ============================================================
+     */
+
+    public Connection getConnection()
+            throws SQLException {
+
         return DriverManager.getConnection(
-                URL,
-                USERNAME,
-                PASSWORD
+                databaseUrl,
+                databaseUsername,
+                databasePassword
         );
+    }
+
+
+    /*
+     * ============================================================
+     * JDBC DRIVER
+     * ============================================================
+     */
+
+    private void loadJdbcDriver() {
+
+        try {
+
+            Class.forName(
+                    "com.mysql.cj.jdbc.Driver"
+            );
+
+        } catch (ClassNotFoundException exception) {
+
+            throw new IllegalStateException(
+                    "MySQL JDBC Driver was not found.",
+                    exception
+            );
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * CONFIGURATION RESOLUTION
+     * ============================================================
+     *
+     * Priority:
+     *
+     * 1. Java system property
+     * 2. Operating-system environment variable
+     * 3. Local development default
+     *
+     * This allows deployment configuration to be changed without
+     * recompiling the application.
+     * ============================================================
+     */
+
+    private String resolveConfiguration(
+            String systemPropertyName,
+            String environmentVariableName,
+            String defaultValue) {
+
+        String systemProperty =
+                System.getProperty(
+                        systemPropertyName
+                );
+
+        if (systemProperty != null
+                && !systemProperty.isBlank()) {
+
+            return systemProperty.trim();
+        }
+
+
+        String environmentValue =
+                System.getenv(
+                        environmentVariableName
+                );
+
+        if (environmentValue != null
+                && !environmentValue.isBlank()) {
+
+            return environmentValue.trim();
+        }
+
+
+        return defaultValue;
     }
 }

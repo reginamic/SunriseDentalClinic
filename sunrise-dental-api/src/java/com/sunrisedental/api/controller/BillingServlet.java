@@ -1,3 +1,4 @@
+
 package com.sunrisedental.api.controller;
 
 import com.sunrisedental.api.model.Bill;
@@ -11,11 +12,22 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+
 import java.math.BigDecimal;
+
+import java.net.URLDecoder;
+
+import java.nio.charset.StandardCharsets;
+
 import java.sql.SQLException;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 
 @WebServlet("/api/bills")
 public class BillingServlet extends HttpServlet {
@@ -26,8 +38,14 @@ public class BillingServlet extends HttpServlet {
     private static final String CHARACTER_ENCODING =
             "UTF-8";
 
+
     private final BillingService billingService =
             new BillingService();
+
+
+    // =========================================================
+    // GET
+    // =========================================================
 
     @Override
     protected void doGet(
@@ -37,6 +55,7 @@ public class BillingServlet extends HttpServlet {
 
         configureJsonResponse(response);
 
+
         try {
 
             String billNumber =
@@ -45,11 +64,17 @@ public class BillingServlet extends HttpServlet {
                             "billNumber"
                     );
 
+
             String appointmentIdParameter =
                     getTrimmedParameter(
                             request,
                             "appointmentId"
                     );
+
+
+            // -------------------------------------------------
+            // Search by bill number
+            // -------------------------------------------------
 
             if (billNumber != null
                     && !billNumber.isBlank()) {
@@ -65,6 +90,7 @@ public class BillingServlet extends HttpServlet {
                                         )
                                 );
 
+
                 writeBillJson(
                         response,
                         bill
@@ -72,6 +98,11 @@ public class BillingServlet extends HttpServlet {
 
                 return;
             }
+
+
+            // -------------------------------------------------
+            // Search by appointment ID
+            // -------------------------------------------------
 
             if (appointmentIdParameter != null
                     && !appointmentIdParameter.isBlank()) {
@@ -81,6 +112,7 @@ public class BillingServlet extends HttpServlet {
                                 appointmentIdParameter,
                                 "Appointment ID"
                         );
+
 
                 Bill bill =
                         billingService
@@ -93,6 +125,7 @@ public class BillingServlet extends HttpServlet {
                                         )
                                 );
 
+
                 writeBillJson(
                         response,
                         bill
@@ -101,13 +134,20 @@ public class BillingServlet extends HttpServlet {
                 return;
             }
 
+
+            // -------------------------------------------------
+            // Get all bills
+            // -------------------------------------------------
+
             List<Bill> bills =
                     billingService.getAllBills();
+
 
             writeBillList(
                     response,
                     bills
             );
+
 
         } catch (IllegalArgumentException exception) {
 
@@ -117,12 +157,14 @@ public class BillingServlet extends HttpServlet {
                     exception.getMessage()
             );
 
+
         } catch (SQLException exception) {
 
             logError(
                     "Unable to retrieve bills.",
                     exception
             );
+
 
             sendErrorResponse(
                     response,
@@ -132,6 +174,11 @@ public class BillingServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // POST — GENERATE BILL
+    // =========================================================
+
     @Override
     protected void doPost(
             HttpServletRequest request,
@@ -139,6 +186,7 @@ public class BillingServlet extends HttpServlet {
             throws ServletException, IOException {
 
         configureJsonResponse(response);
+
 
         try {
 
@@ -151,6 +199,7 @@ public class BillingServlet extends HttpServlet {
                             "Appointment ID"
                     );
 
+
             int generatedBy =
                     parsePositiveInteger(
                             getTrimmedParameter(
@@ -160,17 +209,20 @@ public class BillingServlet extends HttpServlet {
                             "Generator user ID"
                     );
 
+
             BigDecimal additionalCharge =
                     parseOptionalAmount(
                             request,
                             "additionalCharge"
                     );
 
+
             BigDecimal discountAmount =
                     parseOptionalAmount(
                             request,
                             "discountAmount"
                     );
+
 
             Bill bill =
                     billingService.generateBill(
@@ -180,15 +232,18 @@ public class BillingServlet extends HttpServlet {
                             discountAmount
                     );
 
+
             response.setStatus(
                     HttpServletResponse.SC_CREATED
             );
+
 
             writeMessageWithBill(
                     response,
                     "Bill generated successfully.",
                     bill
             );
+
 
         } catch (IllegalArgumentException exception) {
 
@@ -198,12 +253,14 @@ public class BillingServlet extends HttpServlet {
                     exception.getMessage()
             );
 
+
         } catch (SQLException exception) {
 
             logError(
                     "Unable to generate bill.",
                     exception
             );
+
 
             sendErrorResponse(
                     response,
@@ -213,6 +270,11 @@ public class BillingServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // PUT — UPDATE PAYMENT STATUS
+    // =========================================================
+
     @Override
     protected void doPut(
             HttpServletRequest request,
@@ -221,22 +283,39 @@ public class BillingServlet extends HttpServlet {
 
         configureJsonResponse(response);
 
+
         try {
+
+            /*
+             * Tomcat does not reliably expose
+             * application/x-www-form-urlencoded PUT request
+             * bodies through request.getParameter().
+             *
+             * Therefore the PUT request body is parsed
+             * manually.
+             */
+            Map<String, String> formData =
+                    parseFormUrlEncodedBody(
+                            request
+                    );
+
 
             int billId =
                     parsePositiveInteger(
-                            getTrimmedParameter(
-                                    request,
+                            getTrimmedValue(
+                                    formData,
                                     "billId"
                             ),
                             "Bill ID"
                     );
 
+
             String statusParameter =
-                    getTrimmedParameter(
-                            request,
+                    getTrimmedValue(
+                            formData,
                             "paymentStatus"
                     );
+
 
             if (statusParameter == null
                     || statusParameter.isBlank()) {
@@ -246,10 +325,12 @@ public class BillingServlet extends HttpServlet {
                 );
             }
 
+
             BillStatus paymentStatus =
                     BillStatus.fromString(
                             statusParameter
                     );
+
 
             boolean updated =
                     billingService
@@ -257,6 +338,7 @@ public class BillingServlet extends HttpServlet {
                                     billId,
                                     paymentStatus
                             );
+
 
             if (!updated) {
 
@@ -268,6 +350,7 @@ public class BillingServlet extends HttpServlet {
 
                 return;
             }
+
 
             response.getWriter()
                     .print(
@@ -283,6 +366,7 @@ public class BillingServlet extends HttpServlet {
                             + "}"
                     );
 
+
         } catch (IllegalArgumentException exception) {
 
             sendErrorResponse(
@@ -291,12 +375,14 @@ public class BillingServlet extends HttpServlet {
                     exception.getMessage()
             );
 
+
         } catch (SQLException exception) {
 
             logError(
                     "Unable to update payment status.",
                     exception
             );
+
 
             sendErrorResponse(
                     response,
@@ -305,6 +391,115 @@ public class BillingServlet extends HttpServlet {
             );
         }
     }
+
+
+    // =========================================================
+    // PARSE FORM-URLENCODED PUT BODY
+    // =========================================================
+
+    private Map<String, String> parseFormUrlEncodedBody(
+            HttpServletRequest request)
+            throws IOException {
+
+        Map<String, String> formData =
+                new HashMap<>();
+
+
+        StringBuilder body =
+                new StringBuilder();
+
+
+        try (
+            BufferedReader reader =
+                    request.getReader()
+        ) {
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+
+                body.append(line);
+            }
+        }
+
+
+        if (body.length() == 0) {
+
+            return formData;
+        }
+
+
+        String[] pairs =
+                body.toString()
+                        .split("&");
+
+
+        for (String pair : pairs) {
+
+            if (pair == null
+                    || pair.isBlank()) {
+
+                continue;
+            }
+
+
+            String[] keyValue =
+                    pair.split(
+                            "=",
+                            2
+                    );
+
+
+            String key =
+                    URLDecoder.decode(
+                            keyValue[0],
+                            StandardCharsets.UTF_8
+                    );
+
+
+            String value =
+                    keyValue.length > 1
+                            ? URLDecoder.decode(
+                                    keyValue[1],
+                                    StandardCharsets.UTF_8
+                            )
+                            : "";
+
+
+            formData.put(
+                    key,
+                    value
+            );
+        }
+
+
+        return formData;
+    }
+
+
+    // =========================================================
+    // GET TRIMMED MAP VALUE
+    // =========================================================
+
+    private String getTrimmedValue(
+            Map<String, String> formData,
+            String parameterName) {
+
+        String value =
+                formData.get(
+                        parameterName
+                );
+
+
+        return value == null
+                ? null
+                : value.trim();
+    }
+
+
+    // =========================================================
+    // OPTIONAL MONEY
+    // =========================================================
 
     private BigDecimal parseOptionalAmount(
             HttpServletRequest request,
@@ -316,13 +511,20 @@ public class BillingServlet extends HttpServlet {
                         parameterName
                 );
 
-        if (value == null || value.isBlank()) {
+
+        if (value == null
+                || value.isBlank()) {
+
             return BigDecimal.ZERO;
         }
 
+
         try {
 
-            return new BigDecimal(value);
+            return new BigDecimal(
+                    value
+            );
+
 
         } catch (NumberFormatException exception) {
 
@@ -333,21 +535,32 @@ public class BillingServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // POSITIVE INTEGER
+    // =========================================================
+
     private int parsePositiveInteger(
             String value,
             String fieldName) {
 
-        if (value == null || value.isBlank()) {
+        if (value == null
+                || value.isBlank()) {
 
             throw new IllegalArgumentException(
-                    fieldName + " is required."
+                    fieldName
+                    + " is required."
             );
         }
+
 
         try {
 
             int parsedValue =
-                    Integer.parseInt(value);
+                    Integer.parseInt(
+                            value
+                    );
+
 
             if (parsedValue <= 0) {
 
@@ -357,7 +570,9 @@ public class BillingServlet extends HttpServlet {
                 );
             }
 
+
             return parsedValue;
+
 
         } catch (NumberFormatException exception) {
 
@@ -368,6 +583,11 @@ public class BillingServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // NORMAL REQUEST PARAMETER
+    // =========================================================
+
     private String getTrimmedParameter(
             HttpServletRequest request,
             String parameterName) {
@@ -377,10 +597,16 @@ public class BillingServlet extends HttpServlet {
                         parameterName
                 );
 
+
         return value == null
                 ? null
                 : value.trim();
     }
+
+
+    // =========================================================
+    // WRITE BILL LIST
+    // =========================================================
 
     private void writeBillList(
             HttpServletResponse response,
@@ -390,15 +616,19 @@ public class BillingServlet extends HttpServlet {
         PrintWriter writer =
                 response.getWriter();
 
+
         writer.print("[");
+
 
         for (int index = 0;
              index < bills.size();
              index++) {
 
             if (index > 0) {
+
                 writer.print(",");
             }
+
 
             writer.print(
                     toJson(
@@ -407,8 +637,14 @@ public class BillingServlet extends HttpServlet {
             );
         }
 
+
         writer.print("]");
     }
+
+
+    // =========================================================
+    // WRITE SINGLE BILL
+    // =========================================================
 
     private void writeBillJson(
             HttpServletResponse response,
@@ -417,9 +653,16 @@ public class BillingServlet extends HttpServlet {
 
         response.getWriter()
                 .print(
-                        toJson(bill)
+                        toJson(
+                                bill
+                        )
                 );
     }
+
+
+    // =========================================================
+    // WRITE SUCCESS MESSAGE WITH BILL
+    // =========================================================
 
     private void writeMessageWithBill(
             HttpServletResponse response,
@@ -431,13 +674,22 @@ public class BillingServlet extends HttpServlet {
                 .print(
                         "{"
                         + "\"message\":\""
-                        + escapeJson(message)
+                        + escapeJson(
+                                message
+                        )
                         + "\","
                         + "\"bill\":"
-                        + toJson(bill)
+                        + toJson(
+                                bill
+                        )
                         + "}"
                 );
     }
+
+
+    // =========================================================
+    // BILL JSON
+    // =========================================================
 
     private String toJson(
             Bill bill) {
@@ -445,9 +697,13 @@ public class BillingServlet extends HttpServlet {
         StringBuilder json =
                 new StringBuilder();
 
+
         json.append("{")
+
                 .append("\"billId\":")
-                .append(bill.getBillId())
+                .append(
+                        bill.getBillId()
+                )
                 .append(",")
 
                 .append("\"billNumber\":\"")
@@ -506,16 +762,20 @@ public class BillingServlet extends HttpServlet {
 
                 .append("\"items\":[");
 
+
         List<BillItem> items =
                 bill.getItems();
+
 
         for (int index = 0;
              index < items.size();
              index++) {
 
             if (index > 0) {
+
                 json.append(",");
             }
+
 
             json.append(
                     billItemToJson(
@@ -524,10 +784,17 @@ public class BillingServlet extends HttpServlet {
             );
         }
 
+
         json.append("]}");
+
 
         return json.toString();
     }
+
+
+    // =========================================================
+    // BILL ITEM JSON
+    // =========================================================
 
     private String billItemToJson(
             BillItem item) {
@@ -536,11 +803,13 @@ public class BillingServlet extends HttpServlet {
                 + "\"billItemId\":"
                 + item.getBillItemId()
                 + ","
+
                 + "\"itemName\":\""
                 + escapeJson(
                         item.getItemName()
                 )
                 + "\","
+
                 + "\"itemType\":\""
                 + (
                     item.getItemType() == null
@@ -550,16 +819,25 @@ public class BillingServlet extends HttpServlet {
                                     .name()
                 )
                 + "\","
+
                 + "\"quantity\":"
                 + item.getQuantity()
                 + ","
+
                 + "\"unitPrice\":"
                 + item.getUnitPrice()
                 + ","
+
                 + "\"totalPrice\":"
                 + item.getTotalPrice()
+
                 + "}";
     }
+
+
+    // =========================================================
+    // RESPONSE CONFIGURATION
+    // =========================================================
 
     private void configureJsonResponse(
             HttpServletResponse response) {
@@ -568,10 +846,16 @@ public class BillingServlet extends HttpServlet {
                 JSON_CONTENT_TYPE
         );
 
+
         response.setCharacterEncoding(
                 CHARACTER_ENCODING
         );
     }
+
+
+    // =========================================================
+    // ERROR RESPONSE
+    // =========================================================
 
     private void sendErrorResponse(
             HttpServletResponse response,
@@ -583,15 +867,23 @@ public class BillingServlet extends HttpServlet {
                 statusCode
         );
 
+
         response.getWriter()
                 .print(
                         "{"
                         + "\"error\":\""
-                        + escapeJson(message)
+                        + escapeJson(
+                                message
+                        )
                         + "\""
                         + "}"
                 );
     }
+
+
+    // =========================================================
+    // SERVER LOGGING
+    // =========================================================
 
     private void logError(
             String message,
@@ -604,18 +896,40 @@ public class BillingServlet extends HttpServlet {
                 );
     }
 
+
+    // =========================================================
+    // JSON ESCAPING
+    // =========================================================
+
     private String escapeJson(
             String value) {
 
         if (value == null) {
+
             return "";
         }
 
+
         return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+                .replace(
+                        "\\",
+                        "\\\\"
+                )
+                .replace(
+                        "\"",
+                        "\\\""
+                )
+                .replace(
+                        "\n",
+                        "\\n"
+                )
+                .replace(
+                        "\r",
+                        "\\r"
+                )
+                .replace(
+                        "\t",
+                        "\\t"
+                );
     }
 }

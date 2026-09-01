@@ -134,8 +134,7 @@ CREATE TABLE appointments (
         FOREIGN KEY (created_by)
         REFERENCES users(user_id),
 
-    CONSTRAINT uq_dentist_date_time
-        UNIQUE (dentist_id, appointment_date, appointment_time)
+
 );
 
 
@@ -249,7 +248,7 @@ CREATE TABLE appointment_history (
     status ENUM('SCHEDULED', 'COMPLETED', 'CANCELLED')
         NOT NULL,
 
-    notes VARCHAR(500),
+    notes VARCHAR(1000),
 
     changed_by INT NOT NULL,
     change_type ENUM('UPDATE', 'CANCEL')
@@ -401,13 +400,13 @@ INSERT INTO users
 VALUES
 (
     'admin',
-    'e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7',
+    '210000:Dms2vyta8HHAjddTW20mYw==:DEq5J3erz+LhBPJM6pyCzzLbKLRjyuvGNVFOxqv6Lx0=',
     'System Administrator',
     'ADMIN'
 ),
 (
     'reception',
-    '238f1cf33d39690fba3c171984fc1120a1181d236723d337e6a2fdc8d92ae88a',
+    '210000:jOXJw4hAi9KH5Hx322J/+A==:+gj16z2hZpRKx+ciLo9NcB1hloC4tRSQI221iB0WcJ4=',
     'Reception Staff',
     'RECEPTIONIST'
 );
@@ -489,3 +488,15 @@ VALUES
 -- Ensure billing tables support transactions and rollback
 ALTER TABLE bills ENGINE = InnoDB;
 ALTER TABLE bill_items ENGINE = InnoDB;
+
+
+
+
+
+
+
+
+
+
+
+

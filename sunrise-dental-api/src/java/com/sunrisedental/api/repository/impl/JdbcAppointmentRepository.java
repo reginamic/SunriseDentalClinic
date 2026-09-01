@@ -293,80 +293,152 @@ public class JdbcAppointmentRepository implements AppointmentRepository {
         return appointments;
     }
 
-    @Override
-    public boolean existsDentistBooking(
-            int dentistId,
-            LocalDate appointmentDate,
-            LocalTime appointmentTime,
-            Integer excludeAppointmentId)
-            throws SQLException {
+ @Override
+public boolean existsDentistBooking(
+        int dentistId,
+        LocalDate appointmentDate,
+        LocalTime appointmentTime,
+        int proposedDurationMinutes,
+        Integer excludeAppointmentId)
+        throws SQLException {
 
-        String sql;
+    String sql;
+
+    if (excludeAppointmentId == null) {
+
+        sql = """
+                SELECT 1
+                FROM appointments a
+                INNER JOIN treatments t
+                    ON t.treatment_id = a.treatment_id
+                WHERE a.dentist_id = ?
+                  AND a.appointment_date = ?
+                  AND LOWER(a.status) <> 'cancelled'
+
+                  AND a.appointment_time
+                      < ADDTIME(
+                            ?,
+                            SEC_TO_TIME(? * 60)
+                        )
+
+                  AND ADDTIME(
+                        a.appointment_time,
+                        SEC_TO_TIME(
+                            GREATEST(
+                                COALESCE(
+                                    t.estimated_duration_minutes,
+                                    1
+                                ),
+                                1
+                            ) * 60
+                        )
+                      ) > ?
+
+                LIMIT 1
+                """;
+
+    } else {
+
+        sql = """
+                SELECT 1
+                FROM appointments a
+                INNER JOIN treatments t
+                    ON t.treatment_id = a.treatment_id
+                WHERE a.dentist_id = ?
+                  AND a.appointment_date = ?
+                  AND LOWER(a.status) <> 'cancelled'
+                  AND a.appointment_id <> ?
+
+                  AND a.appointment_time
+                      < ADDTIME(
+                            ?,
+                            SEC_TO_TIME(? * 60)
+                        )
+
+                  AND ADDTIME(
+                        a.appointment_time,
+                        SEC_TO_TIME(
+                            GREATEST(
+                                COALESCE(
+                                    t.estimated_duration_minutes,
+                                    1
+                                ),
+                                1
+                            ) * 60
+                        )
+                      ) > ?
+
+                LIMIT 1
+                """;
+    }
+
+    try (
+        Connection connection =
+                connectionManager.getConnection();
+
+        PreparedStatement statement =
+                connection.prepareStatement(sql)
+    ) {
+
+        statement.setInt(
+                1,
+                dentistId
+        );
+
+        statement.setDate(
+                2,
+                Date.valueOf(appointmentDate)
+        );
 
         if (excludeAppointmentId == null) {
-
-            sql = """
-                    SELECT 1
-                    FROM appointments
-                    WHERE dentist_id = ?
-                      AND appointment_date = ?
-                      AND appointment_time = ?
-                    LIMIT 1
-                    """;
-
-        } else {
-
-            sql = """
-                    SELECT 1
-                    FROM appointments
-                    WHERE dentist_id = ?
-                      AND appointment_date = ?
-                      AND appointment_time = ?
-                      AND appointment_id <> ?
-                    LIMIT 1
-                    """;
-        }
-
-        try (
-            Connection connection =
-                    connectionManager.getConnection();
-
-            PreparedStatement statement =
-                    connection.prepareStatement(sql)
-        ) {
-
-            statement.setInt(
-                    1,
-                    dentistId
-            );
-
-            statement.setDate(
-                    2,
-                    Date.valueOf(appointmentDate)
-            );
 
             statement.setTime(
                     3,
                     Time.valueOf(appointmentTime)
             );
 
-            if (excludeAppointmentId != null) {
-                statement.setInt(
-                        4,
-                        excludeAppointmentId
-                );
-            }
+            statement.setInt(
+                    4,
+                    proposedDurationMinutes
+            );
 
-            try (
-                ResultSet resultSet =
-                        statement.executeQuery()
-            ) {
+            statement.setTime(
+                    5,
+                    Time.valueOf(appointmentTime)
+            );
 
-                return resultSet.next();
-            }
+        } else {
+
+            statement.setInt(
+                    3,
+                    excludeAppointmentId
+            );
+
+            statement.setTime(
+                    4,
+                    Time.valueOf(appointmentTime)
+            );
+
+            statement.setInt(
+                    5,
+                    proposedDurationMinutes
+            );
+
+            statement.setTime(
+                    6,
+                    Time.valueOf(appointmentTime)
+            );
+        }
+
+        try (
+            ResultSet resultSet =
+                    statement.executeQuery()
+        ) {
+
+            return resultSet.next();
         }
     }
-
+}
     @Override
     public Appointment save(
             Appointment appointment)

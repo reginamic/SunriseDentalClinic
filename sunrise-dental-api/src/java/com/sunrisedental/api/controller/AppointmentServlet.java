@@ -1,8 +1,11 @@
 package com.sunrisedental.api.controller;
 
 import com.sunrisedental.api.model.Appointment;
+import com.sunrisedental.api.model.AppointmentDetails;
 import com.sunrisedental.api.model.AppointmentStatus;
+
 import com.sunrisedental.api.pattern.builder.AppointmentBuilder;
+
 import com.sunrisedental.api.service.AppointmentService;
 
 import jakarta.servlet.ServletException;
@@ -11,22 +14,54 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+
+import java.math.BigDecimal;
+
+import java.net.URLDecoder;
+
+import java.nio.charset.StandardCharsets;
+
 import java.sql.SQLException;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.format.DateTimeParseException;
-import java.util.List;
 
+import java.time.format.DateTimeParseException;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+
+/**
+ * REST controller for Appointment Management.
+ *
+ * GET requests return enriched appointment information
+ * including patient, dentist and treatment details.
+ *
+ * POST and PUT requests perform appointment creation,
+ * rescheduling, cancellation and completion operations.
+ */
 @WebServlet("/api/appointments")
 public class AppointmentServlet extends HttpServlet {
 
-    private static final String JSON_CONTENT_TYPE = "application/json";
-    private static final String CHARACTER_ENCODING = "UTF-8";
+    private static final String JSON_CONTENT_TYPE =
+            "application/json";
+
+    private static final String CHARACTER_ENCODING =
+            "UTF-8";
+
 
     private final AppointmentService appointmentService =
             new AppointmentService();
+
+
+    // =========================================================
+    // GET
+    // =========================================================
 
     @Override
     protected void doGet(
@@ -34,9 +69,18 @@ public class AppointmentServlet extends HttpServlet {
             HttpServletResponse response)
             throws ServletException, IOException {
 
-        configureJsonResponse(response);
+        configureJsonResponse(
+                response
+        );
 
         try {
+
+            String idParameter =
+                    getTrimmedParameter(
+                            request,
+                            "id"
+                    );
+
 
             String appointmentNumber =
                     getTrimmedParameter(
@@ -44,11 +88,13 @@ public class AppointmentServlet extends HttpServlet {
                             "appointmentNumber"
                     );
 
+
             String dateParameter =
                     getTrimmedParameter(
                             request,
                             "date"
                     );
+
 
             String patientIdParameter =
                     getTrimmedParameter(
@@ -56,12 +102,57 @@ public class AppointmentServlet extends HttpServlet {
                             "patientId"
                     );
 
+
+            /*
+             * =================================================
+             * SEARCH BY INTERNAL APPOINTMENT ID
+             * =================================================
+             *
+             * Primarily used by the Appointment Details page.
+             */
+            if (idParameter != null
+                    && !idParameter.isBlank()) {
+
+                int appointmentId =
+                        parsePositiveInteger(
+                                idParameter,
+                                "Appointment ID"
+                        );
+
+
+                AppointmentDetails details =
+                        appointmentService
+                                .getAppointmentDetailsById(
+                                        appointmentId
+                                )
+                                .orElseThrow(() ->
+                                        new IllegalArgumentException(
+                                                "Appointment not found."
+                                        )
+                                );
+
+
+                writeAppointmentDetailsJson(
+                        response,
+                        details
+                );
+
+                return;
+            }
+
+
+            /*
+             * =================================================
+             * EXACT APPOINTMENT NUMBER SEARCH
+             * =================================================
+             */
+
             if (appointmentNumber != null
                     && !appointmentNumber.isBlank()) {
 
-                Appointment appointment =
+                AppointmentDetails details =
                         appointmentService
-                                .getAppointmentByNumber(
+                                .getAppointmentDetailsByNumber(
                                         appointmentNumber
                                 )
                                 .orElseThrow(() ->
@@ -70,33 +161,52 @@ public class AppointmentServlet extends HttpServlet {
                                         )
                                 );
 
-                writeAppointmentJson(
+
+                writeAppointmentDetailsJson(
                         response,
-                        appointment
+                        details
                 );
 
                 return;
             }
 
+
+            /*
+             * =================================================
+             * DATE SEARCH
+             * =================================================
+             */
+
             if (dateParameter != null
                     && !dateParameter.isBlank()) {
 
                 LocalDate appointmentDate =
-                        parseDate(dateParameter);
+                        parseDate(
+                                dateParameter
+                        );
 
-                List<Appointment> appointments =
+
+                List<AppointmentDetails> appointments =
                         appointmentService
-                                .getAppointmentsByDate(
+                                .getAppointmentDetailsByDate(
                                         appointmentDate
                                 );
 
-                writeAppointmentList(
+
+                writeAppointmentDetailsList(
                         response,
                         appointments
                 );
 
                 return;
             }
+
+
+            /*
+             * =================================================
+             * PATIENT SEARCH
+             * =================================================
+             */
 
             if (patientIdParameter != null
                     && !patientIdParameter.isBlank()) {
@@ -107,13 +217,15 @@ public class AppointmentServlet extends HttpServlet {
                                 "Patient ID"
                         );
 
-                List<Appointment> appointments =
+
+                List<AppointmentDetails> appointments =
                         appointmentService
-                                .getAppointmentsByPatient(
+                                .getAppointmentDetailsByPatient(
                                         patientId
                                 );
 
-                writeAppointmentList(
+
+                writeAppointmentDetailsList(
                         response,
                         appointments
                 );
@@ -121,14 +233,23 @@ public class AppointmentServlet extends HttpServlet {
                 return;
             }
 
-            List<Appointment> appointments =
-                    appointmentService
-                            .getAllAppointments();
 
-            writeAppointmentList(
+            /*
+             * =================================================
+             * ALL APPOINTMENTS
+             * =================================================
+             */
+
+            List<AppointmentDetails> appointments =
+                    appointmentService
+                            .getAllAppointmentDetails();
+
+
+            writeAppointmentDetailsList(
                     response,
                     appointments
             );
+
 
         } catch (IllegalArgumentException exception) {
 
@@ -138,12 +259,14 @@ public class AppointmentServlet extends HttpServlet {
                     exception.getMessage()
             );
 
+
         } catch (SQLException exception) {
 
             logError(
                     "Unable to retrieve appointments.",
                     exception
             );
+
 
             sendErrorResponse(
                     response,
@@ -153,13 +276,20 @@ public class AppointmentServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // POST
+    // =========================================================
+
     @Override
     protected void doPost(
             HttpServletRequest request,
             HttpServletResponse response)
             throws ServletException, IOException {
 
-        configureJsonResponse(response);
+        configureJsonResponse(
+                response
+        );
 
         try {
 
@@ -169,21 +299,25 @@ public class AppointmentServlet extends HttpServlet {
                             true
                     );
 
+
             Appointment savedAppointment =
                     appointmentService
                             .createAppointment(
                                     appointment
                             );
 
+
             response.setStatus(
                     HttpServletResponse.SC_CREATED
             );
+
 
             writeMessageWithAppointment(
                     response,
                     "Appointment created successfully.",
                     savedAppointment
             );
+
 
         } catch (IllegalArgumentException exception) {
 
@@ -193,12 +327,14 @@ public class AppointmentServlet extends HttpServlet {
                     exception.getMessage()
             );
 
+
         } catch (SQLException exception) {
 
             logError(
                     "Unable to create appointment.",
                     exception
             );
+
 
             sendErrorResponse(
                     response,
@@ -208,56 +344,114 @@ public class AppointmentServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // PUT
+    // =========================================================
+
     @Override
     protected void doPut(
             HttpServletRequest request,
             HttpServletResponse response)
             throws ServletException, IOException {
 
-        configureJsonResponse(response);
+        configureJsonResponse(
+                response
+        );
 
         try {
+
+            /*
+             * Tomcat does not reliably expose
+             * application/x-www-form-urlencoded PUT body fields
+             * through request.getParameter().
+             *
+             * Therefore the PUT body is parsed manually.
+             */
+            Map<String, String> parameters =
+                    parseFormEncodedBody(
+                            request
+                    );
+
 
             int appointmentId =
                     parsePositiveInteger(
                             getTrimmedParameter(
-                                    request,
+                                    parameters,
                                     "appointmentId"
                             ),
                             "Appointment ID"
                     );
 
-            Appointment appointment =
-                    buildAppointmentFromRequest(
-                            request,
-                            false
+
+            /*
+             * changedBy represents the user performing
+             * THIS appointment change.
+             *
+             * It is different from createdBy, which identifies
+             * the original appointment creator.
+             */
+            int changedBy =
+                    parsePositiveInteger(
+                            getTrimmedParameter(
+                                    parameters,
+                                    "changedBy"
+                            ),
+                            "Changed By User ID"
                     );
+
+
+            Appointment appointment =
+                    buildAppointmentFromParameters(
+                            parameters
+                    );
+
 
             appointment.setAppointmentId(
                     appointmentId
             );
 
+
             /*
-             * If status was not supplied during update,
-             * AppointmentService will preserve the existing status.
+             * If status is omitted, AppointmentService
+             * preserves the existing status.
              */
             String statusParameter =
                     getTrimmedParameter(
-                            request,
+                            parameters,
                             "status"
                     );
+
 
             if (statusParameter == null
                     || statusParameter.isBlank()) {
 
-                appointment.setStatus(null);
+                appointment.setStatus(
+                        null
+                );
             }
 
+
+            /*
+             * Memento-aware AppointmentService update.
+             *
+             * AppointmentService:
+             *
+             * 1. loads existing appointment
+             * 2. captures old state as Memento
+             * 3. validates lifecycle
+             * 4. runs scheduling Chain when required
+             * 5. checks conflicts
+             * 6. updates appointment
+             * 7. stores previous state in history
+             */
             boolean updated =
                     appointmentService
                             .updateAppointment(
-                                    appointment
+                                    appointment,
+                                    changedBy
                             );
+
 
             if (!updated) {
 
@@ -270,11 +464,13 @@ public class AppointmentServlet extends HttpServlet {
                 return;
             }
 
+
             writeMessageWithAppointment(
                     response,
                     "Appointment updated successfully.",
                     appointment
             );
+
 
         } catch (IllegalArgumentException exception) {
 
@@ -284,12 +480,14 @@ public class AppointmentServlet extends HttpServlet {
                     exception.getMessage()
             );
 
+
         } catch (SQLException exception) {
 
             logError(
                     "Unable to update appointment.",
                     exception
             );
+
 
             sendErrorResponse(
                     response,
@@ -298,6 +496,11 @@ public class AppointmentServlet extends HttpServlet {
             );
         }
     }
+
+
+    // =========================================================
+    // BUILD APPOINTMENT FROM POST REQUEST
+    // =========================================================
 
     private Appointment buildAppointmentFromRequest(
             HttpServletRequest request,
@@ -312,6 +515,7 @@ public class AppointmentServlet extends HttpServlet {
                         "Patient ID"
                 );
 
+
         int dentistId =
                 parsePositiveInteger(
                         getTrimmedParameter(
@@ -320,6 +524,7 @@ public class AppointmentServlet extends HttpServlet {
                         ),
                         "Dentist ID"
                 );
+
 
         int treatmentId =
                 parsePositiveInteger(
@@ -330,6 +535,7 @@ public class AppointmentServlet extends HttpServlet {
                         "Treatment ID"
                 );
 
+
         LocalDate appointmentDate =
                 parseDate(
                         getTrimmedParameter(
@@ -337,6 +543,7 @@ public class AppointmentServlet extends HttpServlet {
                                 "appointmentDate"
                         )
                 );
+
 
         LocalTime appointmentTime =
                 parseTime(
@@ -346,11 +553,13 @@ public class AppointmentServlet extends HttpServlet {
                         )
                 );
 
+
         String notes =
                 getTrimmedParameter(
                         request,
                         "notes"
                 );
+
 
         String statusParameter =
                 getTrimmedParameter(
@@ -358,18 +567,28 @@ public class AppointmentServlet extends HttpServlet {
                         "status"
                 );
 
+
         AppointmentBuilder builder =
                 new AppointmentBuilder()
-                        .patientId(patientId)
-                        .dentistId(dentistId)
-                        .treatmentId(treatmentId)
+                        .patientId(
+                                patientId
+                        )
+                        .dentistId(
+                                dentistId
+                        )
+                        .treatmentId(
+                                treatmentId
+                        )
                         .appointmentDate(
                                 appointmentDate
                         )
                         .appointmentTime(
                                 appointmentTime
                         )
-                        .notes(notes);
+                        .notes(
+                                notes
+                        );
+
 
         if (statusParameter != null
                 && !statusParameter.isBlank()) {
@@ -380,6 +599,7 @@ public class AppointmentServlet extends HttpServlet {
                     )
             );
         }
+
 
         if (requireCreatedBy) {
 
@@ -392,13 +612,218 @@ public class AppointmentServlet extends HttpServlet {
                             "Creator user ID"
                     );
 
+
             builder.createdBy(
                     createdBy
             );
         }
 
+
         return builder.build();
     }
+
+
+    // =========================================================
+    // BUILD APPOINTMENT FROM PUT PARAMETERS
+    // =========================================================
+
+    private Appointment buildAppointmentFromParameters(
+            Map<String, String> parameters) {
+
+        int patientId =
+                parsePositiveInteger(
+                        getTrimmedParameter(
+                                parameters,
+                                "patientId"
+                        ),
+                        "Patient ID"
+                );
+
+
+        int dentistId =
+                parsePositiveInteger(
+                        getTrimmedParameter(
+                                parameters,
+                                "dentistId"
+                        ),
+                        "Dentist ID"
+                );
+
+
+        int treatmentId =
+                parsePositiveInteger(
+                        getTrimmedParameter(
+                                parameters,
+                                "treatmentId"
+                        ),
+                        "Treatment ID"
+                );
+
+
+        LocalDate appointmentDate =
+                parseDate(
+                        getTrimmedParameter(
+                                parameters,
+                                "appointmentDate"
+                        )
+                );
+
+
+        LocalTime appointmentTime =
+                parseTime(
+                        getTrimmedParameter(
+                                parameters,
+                                "appointmentTime"
+                        )
+                );
+
+
+        String notes =
+                getTrimmedParameter(
+                        parameters,
+                        "notes"
+                );
+
+
+        String statusParameter =
+                getTrimmedParameter(
+                        parameters,
+                        "status"
+                );
+
+
+        AppointmentBuilder builder =
+                new AppointmentBuilder()
+                        .patientId(
+                                patientId
+                        )
+                        .dentistId(
+                                dentistId
+                        )
+                        .treatmentId(
+                                treatmentId
+                        )
+                        .appointmentDate(
+                                appointmentDate
+                        )
+                        .appointmentTime(
+                                appointmentTime
+                        )
+                        .notes(
+                                notes
+                        );
+
+
+        if (statusParameter != null
+                && !statusParameter.isBlank()) {
+
+            builder.status(
+                    AppointmentStatus.fromString(
+                            statusParameter
+                    )
+            );
+        }
+
+
+        /*
+         * createdBy is intentionally omitted.
+         *
+         * AppointmentService preserves the original
+         * appointment creator during updates.
+         */
+        return builder.build();
+    }
+
+
+    // =========================================================
+    // PUT FORM BODY PARSER
+    // =========================================================
+
+    private Map<String, String> parseFormEncodedBody(
+            HttpServletRequest request)
+            throws IOException {
+
+        Map<String, String> parameters =
+                new HashMap<>();
+
+
+        StringBuilder body =
+                new StringBuilder();
+
+
+        try (
+                BufferedReader reader =
+                        request.getReader()
+        ) {
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+
+                body.append(
+                        line
+                );
+            }
+        }
+
+
+        if (body.length() == 0) {
+
+            return parameters;
+        }
+
+
+        String[] pairs =
+                body.toString()
+                        .split("&");
+
+
+        for (String pair : pairs) {
+
+            if (pair == null
+                    || pair.isBlank()) {
+
+                continue;
+            }
+
+
+            String[] parts =
+                    pair.split(
+                            "=",
+                            2
+                    );
+
+
+            String key =
+                    URLDecoder.decode(
+                            parts[0],
+                            StandardCharsets.UTF_8
+                    );
+
+
+            String value =
+                    parts.length > 1
+                            ? URLDecoder.decode(
+                                    parts[1],
+                                    StandardCharsets.UTF_8
+                            )
+                            : "";
+
+
+            parameters.put(
+                    key,
+                    value
+            );
+        }
+
+
+        return parameters;
+    }
+
+
+    // =========================================================
+    // DATE PARSER
+    // =========================================================
 
     private LocalDate parseDate(
             String value) {
@@ -411,9 +836,13 @@ public class AppointmentServlet extends HttpServlet {
             );
         }
 
+
         try {
 
-            return LocalDate.parse(value);
+            return LocalDate.parse(
+                    value
+            );
+
 
         } catch (DateTimeParseException exception) {
 
@@ -422,6 +851,11 @@ public class AppointmentServlet extends HttpServlet {
             );
         }
     }
+
+
+    // =========================================================
+    // TIME PARSER
+    // =========================================================
 
     private LocalTime parseTime(
             String value) {
@@ -434,9 +868,13 @@ public class AppointmentServlet extends HttpServlet {
             );
         }
 
+
         try {
 
-            return LocalTime.parse(value);
+            return LocalTime.parse(
+                    value
+            );
+
 
         } catch (DateTimeParseException exception) {
 
@@ -446,6 +884,11 @@ public class AppointmentServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // POSITIVE INTEGER VALIDATION
+    // =========================================================
+
     private int parsePositiveInteger(
             String value,
             String fieldName) {
@@ -454,14 +897,19 @@ public class AppointmentServlet extends HttpServlet {
                 || value.isBlank()) {
 
             throw new IllegalArgumentException(
-                    fieldName + " is required."
+                    fieldName
+                    + " is required."
             );
         }
+
 
         try {
 
             int parsedValue =
-                    Integer.parseInt(value);
+                    Integer.parseInt(
+                            value
+                    );
+
 
             if (parsedValue <= 0) {
 
@@ -471,7 +919,9 @@ public class AppointmentServlet extends HttpServlet {
                 );
             }
 
+
             return parsedValue;
+
 
         } catch (NumberFormatException exception) {
 
@@ -482,6 +932,11 @@ public class AppointmentServlet extends HttpServlet {
         }
     }
 
+
+    // =========================================================
+    // NORMAL REQUEST PARAMETER HELPER
+    // =========================================================
+
     private String getTrimmedParameter(
             HttpServletRequest request,
             String parameterName) {
@@ -491,49 +946,329 @@ public class AppointmentServlet extends HttpServlet {
                         parameterName
                 );
 
+
         return value == null
                 ? null
                 : value.trim();
     }
 
-    private void writeAppointmentList(
+
+    // =========================================================
+    // MAP PARAMETER HELPER FOR PUT
+    // =========================================================
+
+    private String getTrimmedParameter(
+            Map<String, String> parameters,
+            String parameterName) {
+
+        String value =
+                parameters.get(
+                        parameterName
+                );
+
+
+        return value == null
+                ? null
+                : value.trim();
+    }
+
+
+    // =========================================================
+    // ENRICHED APPOINTMENT DETAILS LIST JSON
+    // =========================================================
+
+    private void writeAppointmentDetailsList(
             HttpServletResponse response,
-            List<Appointment> appointments)
+            List<AppointmentDetails> appointments)
             throws IOException {
 
         PrintWriter writer =
                 response.getWriter();
 
-        writer.print("[");
+
+        writer.print(
+                "["
+        );
+
 
         for (int index = 0;
              index < appointments.size();
              index++) {
 
             if (index > 0) {
-                writer.print(",");
+
+                writer.print(
+                        ","
+                );
             }
 
+
             writer.print(
-                    toJson(
+                    appointmentDetailsToJson(
                             appointments.get(index)
                     )
             );
         }
 
-        writer.print("]");
+
+        writer.print(
+                "]"
+        );
     }
 
-    private void writeAppointmentJson(
+
+    // =========================================================
+    // ENRICHED SINGLE APPOINTMENT JSON
+    // =========================================================
+
+    private void writeAppointmentDetailsJson(
             HttpServletResponse response,
-            Appointment appointment)
+            AppointmentDetails appointment)
             throws IOException {
 
         response.getWriter()
                 .print(
-                        toJson(appointment)
+                        appointmentDetailsToJson(
+                                appointment
+                        )
                 );
     }
+
+
+    // =========================================================
+    // APPOINTMENT DETAILS JSON SERIALIZATION
+    // =========================================================
+
+    private String appointmentDetailsToJson(
+            AppointmentDetails appointment) {
+
+        StringBuilder json =
+                new StringBuilder();
+
+
+        json.append("{");
+
+
+        // Appointment
+
+        appendJsonNumber(
+                json,
+                "appointmentId",
+                appointment.getAppointmentId()
+        );
+
+        appendJsonString(
+                json,
+                "appointmentNumber",
+                appointment.getAppointmentNumber()
+        );
+
+        appendJsonString(
+                json,
+                "appointmentDate",
+                appointment.getAppointmentDate() == null
+                        ? null
+                        : appointment
+                                .getAppointmentDate()
+                                .toString()
+        );
+
+        appendJsonString(
+                json,
+                "appointmentTime",
+                appointment.getAppointmentTime() == null
+                        ? null
+                        : appointment
+                                .getAppointmentTime()
+                                .toString()
+        );
+
+        appendJsonString(
+                json,
+                "status",
+                appointment.getStatus()
+        );
+
+        appendJsonString(
+                json,
+                "notes",
+                appointment.getNotes()
+        );
+
+
+        // Patient
+
+        appendJsonNumber(
+                json,
+                "patientId",
+                appointment.getPatientId()
+        );
+
+        appendJsonString(
+                json,
+                "patientCode",
+                appointment.getPatientCode()
+        );
+
+        appendJsonString(
+                json,
+                "patientName",
+                appointment.getPatientName()
+        );
+
+        appendJsonString(
+                json,
+                "patientAddress",
+                appointment.getPatientAddress()
+        );
+
+        appendJsonString(
+                json,
+                "patientContactNumber",
+                appointment.getPatientContactNumber()
+        );
+
+        appendJsonString(
+                json,
+                "patientEmail",
+                appointment.getPatientEmail()
+        );
+
+
+        // Dentist
+
+        appendJsonNumber(
+                json,
+                "dentistId",
+                appointment.getDentistId()
+        );
+
+        appendJsonString(
+                json,
+                "dentistCode",
+                appointment.getDentistCode()
+        );
+
+        appendJsonString(
+                json,
+                "dentistName",
+                appointment.getDentistName()
+        );
+
+        appendJsonString(
+                json,
+                "dentistSpecialization",
+                appointment.getDentistSpecialization()
+        );
+
+        appendJsonString(
+                json,
+                "dentistContactNumber",
+                appointment.getDentistContactNumber()
+        );
+
+        appendJsonString(
+                json,
+                "dentistEmail",
+                appointment.getDentistEmail()
+        );
+
+        appendJsonBoolean(
+                json,
+                "dentistActive",
+                appointment.isDentistActive()
+        );
+
+
+        // Treatment
+
+        appendJsonNumber(
+                json,
+                "treatmentId",
+                appointment.getTreatmentId()
+        );
+
+        appendJsonString(
+                json,
+                "treatmentCode",
+                appointment.getTreatmentCode()
+        );
+
+        appendJsonString(
+                json,
+                "treatmentName",
+                appointment.getTreatmentName()
+        );
+
+        appendJsonString(
+                json,
+                "treatmentDescription",
+                appointment.getTreatmentDescription()
+        );
+
+        appendJsonDecimal(
+                json,
+                "treatmentPrice",
+                appointment.getTreatmentPrice()
+        );
+
+        appendJsonDecimal(
+                json,
+                "consultationFee",
+                appointment.getConsultationFee()
+        );
+
+        appendJsonNullableInteger(
+                json,
+                "estimatedDurationMinutes",
+                appointment.getEstimatedDurationMinutes()
+        );
+
+        appendJsonBoolean(
+                json,
+                "treatmentActive",
+                appointment.isTreatmentActive()
+        );
+
+
+        // Calculated database View values
+
+        appendJsonString(
+                json,
+                "estimatedEndTime",
+                appointment.getEstimatedEndTime() == null
+                        ? null
+                        : appointment
+                                .getEstimatedEndTime()
+                                .toString()
+        );
+
+        appendJsonDecimal(
+                json,
+                "estimatedTotalCost",
+                appointment.getEstimatedTotalCost()
+        );
+
+
+        // Audit
+
+        appendJsonNumberLast(
+                json,
+                "createdBy",
+                appointment.getCreatedBy()
+        );
+
+
+        json.append("}");
+
+
+        return json.toString();
+    }
+
+
+    // =========================================================
+    // MESSAGE + BASIC APPOINTMENT RESPONSE
+    // =========================================================
 
     private void writeMessageWithAppointment(
             HttpServletResponse response,
@@ -545,41 +1280,70 @@ public class AppointmentServlet extends HttpServlet {
                 .print(
                         "{"
                         + "\"message\":\""
-                        + escapeJson(message)
+                        + escapeJson(
+                                message
+                        )
                         + "\","
                         + "\"appointment\":"
-                        + toJson(appointment)
+                        + appointmentToJson(
+                                appointment
+                        )
                         + "}"
                 );
     }
 
-    private String toJson(
+
+    // =========================================================
+    // BASIC APPOINTMENT JSON SERIALIZATION
+    // Used for POST / PUT responses.
+    // =========================================================
+
+    private String appointmentToJson(
             Appointment appointment) {
 
         return "{"
                 + "\"appointmentId\":"
                 + appointment.getAppointmentId()
                 + ","
+
                 + "\"appointmentNumber\":\""
                 + escapeJson(
                         appointment.getAppointmentNumber()
                 )
                 + "\","
+
                 + "\"patientId\":"
                 + appointment.getPatientId()
                 + ","
+
                 + "\"dentistId\":"
                 + appointment.getDentistId()
                 + ","
+
                 + "\"treatmentId\":"
                 + appointment.getTreatmentId()
                 + ","
+
                 + "\"appointmentDate\":\""
-                + appointment.getAppointmentDate()
+                + (
+                    appointment.getAppointmentDate() == null
+                            ? ""
+                            : appointment
+                                    .getAppointmentDate()
+                                    .toString()
+                )
                 + "\","
+
                 + "\"appointmentTime\":\""
-                + appointment.getAppointmentTime()
+                + (
+                    appointment.getAppointmentTime() == null
+                            ? ""
+                            : appointment
+                                    .getAppointmentTime()
+                                    .toString()
+                )
                 + "\","
+
                 + "\"status\":\""
                 + (
                     appointment.getStatus() == null
@@ -590,15 +1354,183 @@ public class AppointmentServlet extends HttpServlet {
                                     .toLowerCase()
                 )
                 + "\","
+
                 + "\"notes\":\""
                 + escapeJson(
                         appointment.getNotes()
                 )
                 + "\","
+
                 + "\"createdBy\":"
                 + appointment.getCreatedBy()
+
                 + "}";
     }
+
+
+    // =========================================================
+    // JSON FIELD HELPERS
+    // =========================================================
+
+    private void appendJsonString(
+            StringBuilder json,
+            String fieldName,
+            String value) {
+
+        json.append("\"")
+                .append(
+                        escapeJson(
+                                fieldName
+                        )
+                )
+                .append("\":");
+
+
+        if (value == null) {
+
+            json.append(
+                    "null"
+            );
+
+        } else {
+
+            json.append("\"")
+                    .append(
+                            escapeJson(
+                                    value
+                            )
+                    )
+                    .append("\"");
+        }
+
+
+        json.append(",");
+    }
+
+
+    private void appendJsonNumber(
+            StringBuilder json,
+            String fieldName,
+            int value) {
+
+        json.append("\"")
+                .append(
+                        escapeJson(
+                                fieldName
+                        )
+                )
+                .append("\":")
+                .append(
+                        value
+                )
+                .append(",");
+    }
+
+
+    private void appendJsonNullableInteger(
+            StringBuilder json,
+            String fieldName,
+            Integer value) {
+
+        json.append("\"")
+                .append(
+                        escapeJson(
+                                fieldName
+                        )
+                )
+                .append("\":");
+
+
+        if (value == null) {
+
+            json.append(
+                    "null"
+            );
+
+        } else {
+
+            json.append(
+                    value
+            );
+        }
+
+
+        json.append(",");
+    }
+
+
+    private void appendJsonDecimal(
+            StringBuilder json,
+            String fieldName,
+            BigDecimal value) {
+
+        json.append("\"")
+                .append(
+                        escapeJson(
+                                fieldName
+                        )
+                )
+                .append("\":");
+
+
+        if (value == null) {
+
+            json.append(
+                    "null"
+            );
+
+        } else {
+
+            json.append(
+                    value.toPlainString()
+            );
+        }
+
+
+        json.append(",");
+    }
+
+
+    private void appendJsonBoolean(
+            StringBuilder json,
+            String fieldName,
+            boolean value) {
+
+        json.append("\"")
+                .append(
+                        escapeJson(
+                                fieldName
+                        )
+                )
+                .append("\":")
+                .append(
+                        value
+                )
+                .append(",");
+    }
+
+
+    private void appendJsonNumberLast(
+            StringBuilder json,
+            String fieldName,
+            int value) {
+
+        json.append("\"")
+                .append(
+                        escapeJson(
+                                fieldName
+                        )
+                )
+                .append("\":")
+                .append(
+                        value
+                );
+    }
+
+
+    // =========================================================
+    // RESPONSE CONFIGURATION
+    // =========================================================
 
     private void configureJsonResponse(
             HttpServletResponse response) {
@@ -612,23 +1544,38 @@ public class AppointmentServlet extends HttpServlet {
         );
     }
 
+
+    // =========================================================
+    // ERROR RESPONSE
+    // =========================================================
+
     private void sendErrorResponse(
             HttpServletResponse response,
             int statusCode,
             String message)
             throws IOException {
 
-        response.setStatus(statusCode);
+        response.setStatus(
+                statusCode
+        );
+
 
         response.getWriter()
                 .print(
                         "{"
                         + "\"error\":\""
-                        + escapeJson(message)
+                        + escapeJson(
+                                message
+                        )
                         + "\""
                         + "}"
                 );
     }
+
+
+    // =========================================================
+    // SERVER LOGGING
+    // =========================================================
 
     private void logError(
             String message,
@@ -641,18 +1588,40 @@ public class AppointmentServlet extends HttpServlet {
                 );
     }
 
+
+    // =========================================================
+    // JSON ESCAPING
+    // =========================================================
+
     private String escapeJson(
             String value) {
 
         if (value == null) {
+
             return "";
         }
 
+
         return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+                .replace(
+                        "\\",
+                        "\\\\"
+                )
+                .replace(
+                        "\"",
+                        "\\\""
+                )
+                .replace(
+                        "\r",
+                        "\\r"
+                )
+                .replace(
+                        "\n",
+                        "\\n"
+                )
+                .replace(
+                        "\t",
+                        "\\t"
+                );
     }
 }

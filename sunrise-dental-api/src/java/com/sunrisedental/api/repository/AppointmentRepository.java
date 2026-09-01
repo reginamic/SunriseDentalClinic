@@ -24,12 +24,13 @@ public interface AppointmentRepository {
     List<Appointment> findByPatientId(int patientId)
             throws SQLException;
 
-    boolean existsDentistBooking(
-            int dentistId,
-            LocalDate appointmentDate,
-            LocalTime appointmentTime,
-            Integer excludeAppointmentId)
-            throws SQLException;
+  boolean existsDentistBooking(
+        int dentistId,
+        LocalDate appointmentDate,
+        LocalTime appointmentTime,
+        int proposedDurationMinutes,
+        Integer excludeAppointmentId)
+        throws SQLException;
 
     Appointment save(Appointment appointment)
             throws SQLException;
